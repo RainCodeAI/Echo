@@ -5,10 +5,12 @@ import { useMutation } from "convex/react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ImagePlus,
   Loader2,
   Mic,
   Square,
   Type,
+  X,
 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -41,6 +43,11 @@ type Phase = "ready" | "recording" | "review" | "submitting" | "done";
 const MAX_RECORDING_MS = 10 * 60 * 1000;
 /** Mirror of the server-side cap (Whisper also refuses files over 25 MB). */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+/** Photo limits (mirror the server-side caps in convex/voiceNotes.ts). */
+const MAX_PHOTOS = 6;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+type AttachedPhoto = { file: File; url: string };
 
 export function FieldRecorder({
   companyId,
@@ -60,7 +67,10 @@ export function FieldRecorder({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioMimeType, setAudioMimeType] = useState<string | undefined>();
+  const [photos, setPhotos] = useState<AttachedPhoto[]>([]);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -99,6 +109,63 @@ export function FieldRecorder({
   }, []);
 
   useEffect(() => () => stopStreams(), [stopStreams]);
+
+  // Revoke any outstanding object URLs when the component unmounts.
+  useEffect(
+    () => () => {
+      photos.forEach((p) => URL.revokeObjectURL(p.url));
+    },
+    // Cleanup reads the latest `photos` via closure only on unmount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  function addPhotos(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    setError(null);
+    const incoming = Array.from(fileList).filter((f) =>
+      f.type.startsWith("image/"),
+    );
+    const accepted: AttachedPhoto[] = [];
+    for (const file of incoming) {
+      if (file.size > MAX_PHOTO_BYTES) {
+        setError(
+          `A photo is too large (max ${Math.round(
+            MAX_PHOTO_BYTES / (1024 * 1024),
+          )} MB).`,
+        );
+        continue;
+      }
+      accepted.push({ file, url: URL.createObjectURL(file) });
+    }
+    setPhotos((current) => {
+      const room = MAX_PHOTOS - current.length;
+      if (room <= 0) {
+        setError(`You can attach at most ${MAX_PHOTOS} photos.`);
+        accepted.forEach((p) => URL.revokeObjectURL(p.url));
+        return current;
+      }
+      const toAdd = accepted.slice(0, room);
+      accepted.slice(room).forEach((p) => URL.revokeObjectURL(p.url));
+      return [...current, ...toAdd];
+    });
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((current) => {
+      const next = current.filter((_, i) => i !== index);
+      const removed = current[index];
+      if (removed) URL.revokeObjectURL(removed.url);
+      return next;
+    });
+  }
+
+  function clearPhotos() {
+    setPhotos((current) => {
+      current.forEach((p) => URL.revokeObjectURL(p.url));
+      return [];
+    });
+  }
 
   async function startRecording() {
     setError(null);
@@ -259,6 +326,31 @@ export function FieldRecorder({
         audioStorageId = json.storageId;
       }
 
+      const uploadedPhotos: {
+        storageId: Id<"_storage">;
+        mimeType?: string;
+      }[] = [];
+      for (const photo of photos) {
+        const uploadUrl = await generateUploadUrl({
+          companyId,
+          teamMemberId: member.id,
+          verificationToken: member.verificationToken,
+        });
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": photo.file.type || "image/jpeg" },
+          body: photo.file,
+        });
+        if (!response.ok) {
+          throw new Error("Photo upload failed. Check your connection and retry.");
+        }
+        const json = (await response.json()) as { storageId: Id<"_storage"> };
+        uploadedPhotos.push({
+          storageId: json.storageId,
+          mimeType: photo.file.type || undefined,
+        });
+      }
+
       const noteId = await createNote({
         companyId,
         teamMemberId: member.id,
@@ -270,6 +362,7 @@ export function FieldRecorder({
         audioDurationMs: elapsedMs || undefined,
         workerFlaggedUrgent: urgent,
         recordedAt: startedAtRef.current || Date.now(),
+        photos: uploadedPhotos.length ? uploadedPhotos : undefined,
       });
 
       setSubmittedId(noteId);
@@ -290,6 +383,7 @@ export function FieldRecorder({
     setTranscript("");
     setInterim("");
     setAudioBlob(null);
+    clearPhotos();
     setUrgent(false);
     setError(null);
     setElapsedMs(0);
@@ -410,6 +504,65 @@ export function FieldRecorder({
             {elapsedMs ? ` · ${formatDurationShort(elapsedMs)}` : ""})
           </p>
         ) : null}
+      </div>
+
+      {/* Photos */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="flex items-center gap-1.5">
+            <ImagePlus className="h-3.5 w-3.5" />
+            Photos
+          </Label>
+          <span className="text-[11px] text-muted-foreground">
+            {photos.length}/{MAX_PHOTOS}
+          </span>
+        </div>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            addPhotos(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <div className="flex flex-wrap gap-2">
+          {photos.map((photo, index) => (
+            <div
+              key={photo.url}
+              className="relative h-20 w-20 overflow-hidden rounded-lg border bg-muted"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt={`Attached photo ${index + 1}`}
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removePhoto(index)}
+                disabled={phase === "submitting"}
+                aria-label={`Remove photo ${index + 1}`}
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {photos.length < MAX_PHOTOS ? (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={phase === "recording" || phase === "submitting"}
+              className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-xs text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+            >
+              <ImagePlus className="h-5 w-5" />
+              Add
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <label className="flex items-start gap-3 rounded-lg border bg-muted/30 px-3 py-3">

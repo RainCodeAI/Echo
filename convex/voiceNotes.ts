@@ -24,6 +24,9 @@ const MAX_OWNER_NOTE_CHARS = 4_000;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 /** Owner-triggered AI retries are capped to avoid runaway cost on a bad note. */
 const MAX_AI_ATTEMPTS = 5;
+/** Photo attachment limits per note. */
+const MAX_PHOTOS = 6;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 /** Reject nonsensical client clocks: recordedAt must be within this skew. */
 const RECORDED_AT_SKEW_MS = 24 * 60 * 60 * 1000;
 
@@ -61,6 +64,14 @@ export const createFromField = mutation({
     audioDurationMs: v.optional(v.number()),
     workerFlaggedUrgent: v.optional(v.boolean()),
     recordedAt: v.number(),
+    photos: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          mimeType: v.optional(v.string()),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const session = await requireFieldSession(ctx, {
@@ -108,6 +119,27 @@ export const createFromField = mutation({
       }
     }
 
+    // Validate photo attachments before creating the note so nothing dangles.
+    const photos = args.photos ?? [];
+    if (photos.length > MAX_PHOTOS) {
+      await Promise.all(photos.map((p) => ctx.storage.delete(p.storageId)));
+      throw new Error(`Attach at most ${MAX_PHOTOS} photos.`);
+    }
+    for (const p of photos) {
+      const meta = await ctx.db.system.get(p.storageId);
+      if (!meta) {
+        throw new Error("A photo upload was not found. Please re-attach.");
+      }
+      if (meta.size > MAX_PHOTO_BYTES) {
+        await ctx.storage.delete(p.storageId);
+        throw new Error(
+          `A photo is too large (max ${Math.round(
+            MAX_PHOTO_BYTES / (1024 * 1024),
+          )} MB).`,
+        );
+      }
+    }
+
     // Clamp a client-supplied recordedAt to a sane window around server time.
     const recordedAt =
       args.recordedAt &&
@@ -132,6 +164,21 @@ export const createFromField = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    if (photos.length > 0) {
+      await Promise.all(
+        photos.map((p, i) =>
+          ctx.db.insert("voiceNotePhotos", {
+            companyId: session.companyId,
+            voiceNoteId: noteId,
+            storageId: p.storageId,
+            mimeType: p.mimeType,
+            sortOrder: i,
+            createdAt: now,
+          }),
+        ),
+      );
+    }
 
     // Save-first complete — enrich asynchronously (Whisper + structure).
     await ctx.scheduler.runAfter(0, internal.ai.processNoteInternal, {
@@ -260,7 +307,21 @@ export const get = query({
       audioUrl = await ctx.storage.getUrl(note.audioStorageId);
     }
 
-    return { ...note, crewName, audioUrl };
+    const photoRows = await ctx.db
+      .query("voiceNotePhotos")
+      .withIndex("by_note", (q) => q.eq("voiceNoteId", note._id))
+      .collect();
+    photoRows.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const photos = await Promise.all(
+      photoRows.map(async (p) => ({
+        id: p._id,
+        url: await ctx.storage.getUrl(p.storageId),
+        mimeType: p.mimeType ?? null,
+        caption: p.caption ?? null,
+      })),
+    );
+
+    return { ...note, crewName, audioUrl, photos };
   },
 });
 

@@ -151,6 +151,34 @@ export default function NoteDetailPage({
             </p>
           </div>
 
+          {note.photos && note.photos.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Photos ({note.photos.length})
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {note.photos.map((photo) =>
+                  photo.url ? (
+                    <a
+                      key={photo.id}
+                      href={photo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block overflow-hidden rounded-lg border bg-muted"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.url}
+                        alt={photo.caption ?? "Job-site photo"}
+                        className="h-32 w-full object-cover transition hover:opacity-90"
+                      />
+                    </a>
+                  ) : null,
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {note.reviewedAt ? (
             <>
               <Separator />
