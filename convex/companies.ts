@@ -48,11 +48,13 @@ export const update = mutation({
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     if (args.name !== undefined) patch.name = args.name.trim() || company.name;
     if (args.primaryTrade !== undefined) patch.primaryTrade = args.primaryTrade;
-    if (args.phone !== undefined) patch.phone = args.phone;
-    if (args.email !== undefined) patch.email = args.email;
-    if (args.timezone !== undefined) patch.timezone = args.timezone;
+    if (args.phone !== undefined) patch.phone = args.phone.trim() || undefined;
+    if (args.email !== undefined) patch.email = args.email.trim() || undefined;
+    if (args.timezone !== undefined) {
+      patch.timezone = args.timezone.trim() || undefined;
+    }
     if (args.notificationEmail !== undefined) {
-      patch.notificationEmail = args.notificationEmail;
+      patch.notificationEmail = args.notificationEmail.trim() || undefined;
     }
     if (args.notificationsEnabled !== undefined) {
       patch.notificationsEnabled = args.notificationsEnabled;

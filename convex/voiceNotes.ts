@@ -142,22 +142,76 @@ export const createFromField = mutation({
   },
 });
 
-/** Owner dashboard: recent notes for the signed-in company. */
+/**
+ * Owner dashboard: recent notes for the signed-in company, with optional
+ * filters. The most selective available index is used as the base; remaining
+ * filters and free-text search are applied in memory over a bounded fetch
+ * (fine at MVP scale — swap to the search indexes when note counts grow).
+ */
 export const listForCompany = query({
   args: {
     limit: v.optional(v.number()),
+    status: v.optional(voiceNoteStatusValidator),
+    teamMemberId: v.optional(v.id("teamMembers")),
+    urgentOnly: v.optional(v.boolean()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireCurrentUser(ctx);
     const limit = Math.min(args.limit ?? 50, 100);
+    const FETCH_CAP = 200;
 
-    const notes = await ctx.db
-      .query("voiceNotes")
-      .withIndex("by_company_and_created", (q) =>
-        q.eq("companyId", user.companyId),
-      )
-      .order("desc")
-      .take(limit);
+    let rows;
+    if (args.status) {
+      const status = args.status;
+      rows = await ctx.db
+        .query("voiceNotes")
+        .withIndex("by_company_and_status", (q) =>
+          q.eq("companyId", user.companyId).eq("status", status),
+        )
+        .order("desc")
+        .take(FETCH_CAP);
+    } else if (args.teamMemberId) {
+      const teamMemberId = args.teamMemberId;
+      rows = await ctx.db
+        .query("voiceNotes")
+        .withIndex("by_company_and_team_member", (q) =>
+          q.eq("companyId", user.companyId).eq("teamMemberId", teamMemberId),
+        )
+        .order("desc")
+        .take(FETCH_CAP);
+    } else {
+      rows = await ctx.db
+        .query("voiceNotes")
+        .withIndex("by_company_and_created", (q) =>
+          q.eq("companyId", user.companyId),
+        )
+        .order("desc")
+        .take(FETCH_CAP);
+    }
+
+    // Crew filter when the base index was chosen for status instead.
+    if (args.teamMemberId && args.status) {
+      rows = rows.filter((n) => n.teamMemberId === args.teamMemberId);
+    }
+    if (args.urgentOnly) {
+      rows = rows.filter(
+        (n) =>
+          n.workerFlaggedUrgent ||
+          n.urgency === "high" ||
+          n.urgency === "emergency",
+      );
+    }
+    const term = args.search?.trim().toLowerCase();
+    if (term) {
+      rows = rows.filter((n) =>
+        `${n.rawTranscript} ${n.aiSummary ?? ""} ${n.aiTitle ?? ""}`
+          .toLowerCase()
+          .includes(term),
+      );
+    }
+
+    const notes = rows.slice(0, limit);
 
     const memberIds = [
       ...new Set(

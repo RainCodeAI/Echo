@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CompanyProfileForm } from "@/components/settings/company-profile-form";
 
 export default function SettingsPage() {
   const me = useQuery(api.users.current, {});
@@ -23,6 +24,16 @@ export default function SettingsPage() {
             Workspace identity for AI prompts and field entry branding.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <CompanyProfileForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Account</CardTitle>
+          <CardDescription>Your signed-in identity and workspace id.</CardDescription>
+        </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {me === undefined ? (
             <Skeleton className="h-16 w-full" />
@@ -30,10 +41,6 @@ export default function SettingsPage() {
             <p className="text-muted-foreground">Provisioning workspace…</p>
           ) : (
             <>
-              <div>
-                <p className="text-muted-foreground">Company</p>
-                <p className="font-medium">{me.company?.name ?? "—"}</p>
-              </div>
               <div>
                 <p className="text-muted-foreground">Signed in as</p>
                 <p className="font-medium">
