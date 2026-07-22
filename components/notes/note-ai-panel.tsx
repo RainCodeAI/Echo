@@ -72,12 +72,14 @@ export function NoteAiPanel({
         ) : null}
 
         {(aiStatus === "pending" || aiStatus === "processing") && !hasStructure ? (
-          <p className="text-sm text-muted-foreground">
-            {aiStatus === "processing"
-              ? "Structuring this note…"
-              : "Waiting for AI enrichment. Raw transcript and audio are already saved."}
+          <div className="text-sm text-muted-foreground">
+            <p>
+              {aiStatus === "processing"
+                ? "Structuring this note…"
+                : "Waiting for AI enrichment. Raw transcript and audio are already saved."}
+            </p>
             {retrySlot ? <div className="mt-3">{retrySlot}</div> : null}
-          </p>
+          </div>
         ) : null}
 
         {aiTitle ? (

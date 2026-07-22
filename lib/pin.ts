@@ -3,7 +3,8 @@
 export function generatePin(): string {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
-  return String(1000 + (array[0] % 9000)).padStart(4, "0");
+  // Full 0000–9999 range (modulo bias over 2^32 is negligible).
+  return String(array[0] % 10000).padStart(4, "0");
 }
 
 export function isValidPin(pin: string): boolean {

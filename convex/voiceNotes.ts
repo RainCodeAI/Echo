@@ -22,6 +22,8 @@ const MAX_TRANSCRIPT_CHARS = 20_000;
 const MAX_OWNER_NOTE_CHARS = 4_000;
 /** Hard cap on stored audio. Whisper also refuses files larger than 25 MB. */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+/** Owner-triggered AI retries are capped to avoid runaway cost on a bad note. */
+const MAX_AI_ATTEMPTS = 5;
 /** Reject nonsensical client clocks: recordedAt must be within this skew. */
 const RECORDED_AT_SKEW_MS = 24 * 60 * 60 * 1000;
 
@@ -180,12 +182,18 @@ export const listForCompany = query({
   },
 });
 
-/** Owner: single note (tenant-scoped). */
+/**
+ * Owner: single note (tenant-scoped). Returns null (not a thrown error) for a
+ * missing or cross-tenant id so the UI can render a friendly "not found" state.
+ */
 export const get = query({
   args: { noteId: v.id("voiceNotes") },
   handler: async (ctx, { noteId }) => {
     const user = await requireCurrentUser(ctx);
-    const note = assertSameCompany(await ctx.db.get(noteId), user.companyId);
+    const note = await ctx.db.get(noteId);
+    if (!note || note.companyId !== user.companyId) {
+      return null;
+    }
 
     let crewName: string | null = null;
     if (note.teamMemberId) {
@@ -370,6 +378,33 @@ export const setWorkerFlaggedUrgent = mutation({
   },
 });
 
+/**
+ * Save all owner-review fields in one write (owner note + urgency + urgent
+ * flag). Replaces three separate mutations that raced on `updatedAt`.
+ */
+export const updateReview = mutation({
+  args: {
+    noteId: v.id("voiceNotes"),
+    ownerNote: v.optional(v.string()),
+    urgency: v.optional(urgencyValidator),
+    workerFlaggedUrgent: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireOwnedNote(ctx, args.noteId);
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.ownerNote !== undefined) {
+      const trimmed = args.ownerNote.trim().slice(0, MAX_OWNER_NOTE_CHARS);
+      patch.ownerNote = trimmed || undefined;
+    }
+    if (args.urgency !== undefined) patch.urgency = args.urgency;
+    if (args.workerFlaggedUrgent !== undefined) {
+      patch.workerFlaggedUrgent = args.workerFlaggedUrgent;
+    }
+    await ctx.db.patch(args.noteId, patch);
+    return args.noteId;
+  },
+});
+
 /** Generic status patch (kept narrow for future filters). */
 export const setStatus = mutation({
   args: {
@@ -400,7 +435,15 @@ export const setStatus = mutation({
 export const requestAiRetry = mutation({
   args: { noteId: v.id("voiceNotes") },
   handler: async (ctx, { noteId }) => {
-    await requireOwnedNote(ctx, noteId);
+    const { note } = await requireOwnedNote(ctx, noteId);
+    if (note.aiStatus === "processing") {
+      throw new Error("AI is already running on this note — give it a moment.");
+    }
+    if ((note.aiGenerationAttempts ?? 0) >= MAX_AI_ATTEMPTS) {
+      throw new Error(
+        "This note has hit the AI retry limit. Edit the transcript before retrying.",
+      );
+    }
     await ctx.db.patch(noteId, {
       aiStatus: "pending",
       aiErrorMessage: undefined,

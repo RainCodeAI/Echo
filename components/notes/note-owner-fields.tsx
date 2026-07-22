@@ -24,11 +24,7 @@ export function NoteOwnerFields({
   urgency,
   workerFlaggedUrgent,
 }: NoteOwnerFieldsProps) {
-  const setOwnerNote = useMutation(api.voiceNotes.setOwnerNote);
-  const setUrgency = useMutation(api.voiceNotes.setUrgency);
-  const setWorkerFlaggedUrgent = useMutation(
-    api.voiceNotes.setWorkerFlaggedUrgent,
-  );
+  const updateReview = useMutation(api.voiceNotes.updateReview);
 
   const [noteDraft, setNoteDraft] = useState(ownerNote ?? "");
   const [urgencyDraft, setUrgencyDraft] = useState<Urgency>(
@@ -56,14 +52,12 @@ export function NoteOwnerFields({
     setError(null);
     setMessage(null);
     try {
-      await Promise.all([
-        setOwnerNote({ noteId, ownerNote: noteDraft }),
-        setUrgency({ noteId, urgency: urgencyDraft }),
-        setWorkerFlaggedUrgent({
-          noteId,
-          workerFlaggedUrgent: urgentDraft,
-        }),
-      ]);
+      await updateReview({
+        noteId,
+        ownerNote: noteDraft,
+        urgency: urgencyDraft,
+        workerFlaggedUrgent: urgentDraft,
+      });
       setMessage("Saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");

@@ -97,15 +97,12 @@ export const processNoteInternal = internalAction({
             model: "whisper-1",
             language: "en",
           });
+          // We only reach here when the client transcript was too weak to use
+          // (see needsWhisper), so Whisper output fully replaces it.
           const whispered = (whisper.text ?? "").trim();
           if (whispered) {
-            if (transcript.length >= MIN_TRANSCRIPT_CHARS) {
-              transcript = `${transcript}\n\n${whispered}`.trim();
-              transcriptSource = "merged";
-            } else {
-              transcript = whispered;
-              transcriptSource = "whisper";
-            }
+            transcript = whispered;
+            transcriptSource = "whisper";
             await ctx.runMutation(internal.voiceNotes.applyTranscript, {
               noteId,
               rawTranscript: transcript,
