@@ -37,6 +37,11 @@ type FieldRecorderProps = {
 
 type Phase = "ready" | "recording" | "review" | "submitting" | "done";
 
+/** Auto-stop long recordings so blobs stay under the server cap. */
+const MAX_RECORDING_MS = 10 * 60 * 1000;
+/** Mirror of the server-side cap (Whisper also refuses files over 25 MB). */
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+
 export function FieldRecorder({
   companyId,
   companyName,
@@ -175,7 +180,12 @@ export function FieldRecorder({
       startedAtRef.current = Date.now();
       setElapsedMs(0);
       tickRef.current = window.setInterval(() => {
-        setElapsedMs(Date.now() - startedAtRef.current);
+        const elapsed = Date.now() - startedAtRef.current;
+        setElapsedMs(elapsed);
+        // Stop automatically at the max length so the blob stays under cap.
+        if (elapsed >= MAX_RECORDING_MS) {
+          stopRecording();
+        }
       }, 250);
       setPhase("recording");
     } catch {
@@ -212,6 +222,15 @@ export function FieldRecorder({
     const text = transcript.trim();
     if (!text && !audioBlob) {
       setError("Record something or type a short note before submitting.");
+      return;
+    }
+
+    if (audioBlob && audioBlob.size > MAX_AUDIO_BYTES) {
+      setError(
+        `Recording is too large (max ${Math.round(
+          MAX_AUDIO_BYTES / (1024 * 1024),
+        )} MB). Re-record a shorter memo.`,
+      );
       return;
     }
 

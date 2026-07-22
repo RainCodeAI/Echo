@@ -20,6 +20,10 @@ import {
 
 const MAX_TRANSCRIPT_CHARS = 20_000;
 const MAX_OWNER_NOTE_CHARS = 4_000;
+/** Hard cap on stored audio. Whisper also refuses files larger than 25 MB. */
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+/** Reject nonsensical client clocks: recordedAt must be within this skew. */
+const RECORDED_AT_SKEW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Field capture + owner read APIs for voice notes.
@@ -84,6 +88,31 @@ export const createFromField = mutation({
     }
 
     const now = Date.now();
+
+    // Enforce the audio size cap server-side. The blob is already in storage,
+    // so an oversized upload is deleted here rather than left orphaned.
+    if (args.audioStorageId) {
+      const meta = await ctx.db.system.get(args.audioStorageId);
+      if (!meta) {
+        throw new Error("Audio upload was not found. Please re-record.");
+      }
+      if (meta.size > MAX_AUDIO_BYTES) {
+        await ctx.storage.delete(args.audioStorageId);
+        throw new Error(
+          `Recording is too large (max ${Math.round(
+            MAX_AUDIO_BYTES / (1024 * 1024),
+          )} MB). Record a shorter memo.`,
+        );
+      }
+    }
+
+    // Clamp a client-supplied recordedAt to a sane window around server time.
+    const recordedAt =
+      args.recordedAt &&
+      Math.abs(now - args.recordedAt) <= RECORDED_AT_SKEW_MS
+        ? args.recordedAt
+        : now;
+
     const noteId = await ctx.db.insert("voiceNotes", {
       companyId: session.companyId,
       teamMemberId: session.teamMemberId,
@@ -95,7 +124,7 @@ export const createFromField = mutation({
       audioDurationMs: args.audioDurationMs,
       clientUploadId,
       workerFlaggedUrgent: args.workerFlaggedUrgent ?? false,
-      recordedAt: args.recordedAt || now,
+      recordedAt,
       aiStatus: "pending",
       urgency: args.workerFlaggedUrgent ? "high" : "medium",
       createdAt: now,

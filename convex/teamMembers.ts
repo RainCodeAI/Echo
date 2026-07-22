@@ -138,10 +138,77 @@ export const update = mutation({
   },
 });
 
+// --- Server-side PIN brute-force throttle ------------------------------------
+
+/** Failed attempts within a window before the company entry is locked. */
+const MAX_FAILED_ATTEMPTS = 10;
+/** How long entry is locked after hitting the limit. */
+const LOCKOUT_MS = 60_000;
+/** Idle window after which the failure counter resets on its own. */
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+
+/** Record one failed PIN attempt, locking the company entry at the threshold. */
+async function recordPinFailure(
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+  now: number,
+) {
+  const record = await ctx.db
+    .query("pinAttempts")
+    .withIndex("by_company", (q) => q.eq("companyId", companyId))
+    .unique();
+
+  if (!record) {
+    await ctx.db.insert("pinAttempts", {
+      companyId,
+      failedCount: 1,
+      windowStartedAt: now,
+      updatedAt: now,
+    });
+    return;
+  }
+
+  // Reset the counter if the previous window has gone stale.
+  const staleWindow = now - record.windowStartedAt > ATTEMPT_WINDOW_MS;
+  const failedCount = (staleWindow ? 0 : record.failedCount) + 1;
+
+  const patch: Record<string, unknown> = {
+    failedCount,
+    windowStartedAt: staleWindow ? now : record.windowStartedAt,
+    updatedAt: now,
+  };
+  if (failedCount >= MAX_FAILED_ATTEMPTS) {
+    // Lock out and start a fresh window so the next burst is counted anew.
+    patch.lockedUntil = now + LOCKOUT_MS;
+    patch.failedCount = 0;
+    patch.windowStartedAt = now;
+  }
+  await ctx.db.patch(record._id, patch);
+}
+
+/** Clear the failure counter after a successful verification. */
+async function clearPinFailures(
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+  now: number,
+) {
+  const record = await ctx.db
+    .query("pinAttempts")
+    .withIndex("by_company", (q) => q.eq("companyId", companyId))
+    .unique();
+  if (!record) return;
+  await ctx.db.patch(record._id, {
+    failedCount: 0,
+    lockedUntil: undefined,
+    windowStartedAt: now,
+    updatedAt: now,
+  });
+}
+
 /**
  * Public PIN check for `/entry/[companyId]`.
- * Returns member identity on success (no pinHash). Client rate-limits locally;
- * server-side lockouts can land later.
+ * Returns member identity on success (no pinHash). Rate-limited server-side —
+ * the client lockout alone is bypassable by calling the API directly.
  */
 export const verifyPin = mutation({
   args: {
@@ -149,7 +216,22 @@ export const verifyPin = mutation({
     pin: v.string(),
   },
   handler: async (ctx, { companyId, pin }) => {
+    const now = Date.now();
+
+    const attempts = await ctx.db
+      .query("pinAttempts")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .unique();
+    if (attempts?.lockedUntil && attempts.lockedUntil > now) {
+      const seconds = Math.ceil((attempts.lockedUntil - now) / 1000);
+      return {
+        ok: false as const,
+        error: `Too many attempts. Try again in ${seconds}s.`,
+      };
+    }
+
     if (!isValidPin(pin)) {
+      await recordPinFailure(ctx, companyId, now);
       return { ok: false as const, error: "PIN must be 4 digits." };
     }
 
@@ -168,10 +250,16 @@ export const verifyPin = mutation({
 
     const match = members.find((m) => safeEqualHex(m.pinHash, pinHash));
     if (!match) {
+      await recordPinFailure(ctx, companyId, now);
       return { ok: false as const, error: "Incorrect PIN." };
     }
 
-    const verificationToken = buildFieldVerificationToken(companyId, match._id);
+    await clearPinFailures(ctx, companyId, now);
+    const verificationToken = await buildFieldVerificationToken(
+      companyId,
+      match._id,
+      now,
+    );
 
     return {
       ok: true as const,

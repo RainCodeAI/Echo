@@ -309,6 +309,23 @@ export default defineSchema({
       filterFields: ["companyId", "status"],
     }),
 
+  /**
+   * Server-side PIN brute-force throttle for public `/entry/[companyId]`.
+   * One row per company; the client lockout is bypassable so this is the
+   * authoritative limit. Tradeoff: a determined attacker can throttle a whole
+   * company's crew (DoS) — acceptable for MVP; per-IP limiting is future work.
+   */
+  pinAttempts: defineTable({
+    companyId: v.id("companies"),
+    /** Failed attempts in the current rolling window. */
+    failedCount: v.number(),
+    /** Start of the current counting window. */
+    windowStartedAt: v.number(),
+    /** When set and in the future, verifyPin is locked out. */
+    lockedUntil: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_company", ["companyId"]),
+
   /** Photos attached to a voice note (binaries in Convex file storage). */
   voiceNotePhotos: defineTable({
     companyId: v.id("companies"),
