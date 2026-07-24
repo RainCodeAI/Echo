@@ -90,7 +90,7 @@ type ParsedToken = {
   signature: string;
 };
 
-function parseFieldVerificationToken(token: string): ParsedToken | null {
+export function parseFieldVerificationToken(token: string): ParsedToken | null {
   const parts = token.split(":");
   if (parts.length !== 5 || parts[0] !== TOKEN_PREFIX) return null;
   const issuedAt = Number(parts[3]);
@@ -104,7 +104,9 @@ function parseFieldVerificationToken(token: string): ParsedToken | null {
 }
 
 /** Verify structure, signature, and freshness of a field token. */
-async function verifyFieldToken(token: string): Promise<ParsedToken | null> {
+export async function verifyFieldToken(
+  token: string,
+): Promise<ParsedToken | null> {
   const parsed = parseFieldVerificationToken(token);
   if (!parsed) return null;
 
