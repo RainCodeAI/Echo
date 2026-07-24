@@ -222,6 +222,8 @@ export default function NotesPage() {
                             ? ` · ${formatDurationShort(note.audioDurationMs)}`
                             : ""}
                           {note.audioStorageId ? " · audio" : ""}
+                          {note.leadName ? ` · ${note.leadName}` : ""}
+                          {note.jobTitle ? ` · ${note.jobTitle}` : ""}
                         </p>
                       </div>
                       <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />

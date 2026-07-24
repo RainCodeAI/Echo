@@ -274,11 +274,42 @@ export const listForCompany = query({
         .map((m) => [m._id, m.name] as const),
     );
 
+    const leadIds = [
+      ...new Set(
+        notes
+          .map((n) => n.leadId)
+          .filter((id): id is NonNullable<typeof id> => !!id),
+      ),
+    ];
+    const jobIds = [
+      ...new Set(
+        notes
+          .map((n) => n.jobId)
+          .filter((id): id is NonNullable<typeof id> => !!id),
+      ),
+    ];
+    const [leads, jobs] = await Promise.all([
+      Promise.all(leadIds.map((id) => ctx.db.get(id))),
+      Promise.all(jobIds.map((id) => ctx.db.get(id))),
+    ]);
+    const leadNameById = new Map(
+      leads
+        .filter((l): l is NonNullable<typeof l> => !!l)
+        .map((l) => [l._id, l.customerName] as const),
+    );
+    const jobTitleById = new Map(
+      jobs
+        .filter((j): j is NonNullable<typeof j> => !!j)
+        .map((j) => [j._id, j.title] as const),
+    );
+
     return notes.map((note) => ({
       ...note,
       crewName: note.teamMemberId
         ? (memberNameById.get(note.teamMemberId) ?? "Crew")
         : "Office",
+      leadName: note.leadId ? (leadNameById.get(note.leadId) ?? null) : null,
+      jobTitle: note.jobId ? (jobTitleById.get(note.jobId) ?? null) : null,
     }));
   },
 });
@@ -321,7 +352,22 @@ export const get = query({
       })),
     );
 
-    return { ...note, crewName, audioUrl, photos };
+    let leadName: string | null = null;
+    if (note.leadId) {
+      const lead = await ctx.db.get(note.leadId);
+      if (lead && lead.companyId === user.companyId) {
+        leadName = lead.customerName;
+      }
+    }
+    let jobTitle: string | null = null;
+    if (note.jobId) {
+      const job = await ctx.db.get(note.jobId);
+      if (job && job.companyId === user.companyId) {
+        jobTitle = job.title;
+      }
+    }
+
+    return { ...note, crewName, audioUrl, photos, leadName, jobTitle };
   },
 });
 
@@ -515,6 +561,44 @@ export const updateReview = mutation({
     if (args.workerFlaggedUrgent !== undefined) {
       patch.workerFlaggedUrgent = args.workerFlaggedUrgent;
     }
+    await ctx.db.patch(args.noteId, patch);
+    return args.noteId;
+  },
+});
+
+/**
+ * Link (or unlink) a note to a lead and/or job. Pass an id to set, `null` to
+ * clear, or omit to leave unchanged. Linked docs must be in the same company.
+ */
+export const setLinks = mutation({
+  args: {
+    noteId: v.id("voiceNotes"),
+    leadId: v.optional(v.union(v.id("leads"), v.null())),
+    jobId: v.optional(v.union(v.id("jobs"), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireOwnedNote(ctx, args.noteId);
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+
+    if (args.leadId !== undefined) {
+      if (args.leadId === null) {
+        patch.leadId = undefined;
+      } else {
+        const lead = await ctx.db.get(args.leadId);
+        assertSameCompany(lead, user.companyId);
+        patch.leadId = args.leadId;
+      }
+    }
+    if (args.jobId !== undefined) {
+      if (args.jobId === null) {
+        patch.jobId = undefined;
+      } else {
+        const job = await ctx.db.get(args.jobId);
+        assertSameCompany(job, user.companyId);
+        patch.jobId = args.jobId;
+      }
+    }
+
     await ctx.db.patch(args.noteId, patch);
     return args.noteId;
   },
