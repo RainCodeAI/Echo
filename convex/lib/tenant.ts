@@ -50,6 +50,18 @@ export async function requireCompanyId(ctx: AnyCtx) {
 }
 
 /**
+ * Like {@link requireCurrentUser} but also requires the `owner` role. Use for
+ * workspace-administration actions (inviting/removing office users).
+ */
+export async function requireOwner(ctx: AnyCtx): Promise<Doc<"users">> {
+  const user = await requireCurrentUser(ctx);
+  if (user.role !== "owner") {
+    throw new Error("Only the workspace owner can do that.");
+  }
+  return user;
+}
+
+/**
  * The owner of a company — used to attribute system-created records.
  * Prefers `role === "owner"` over the first row so attribution stays correct
  * if members are added later.

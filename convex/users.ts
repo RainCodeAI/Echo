@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "./lib/tenant";
+import { getCurrentUser, requireCurrentUser } from "./lib/tenant";
+import { normalizeEmail } from "./lib/email";
 
 /**
  * User + workspace provisioning.
@@ -54,6 +55,37 @@ export const store = mutation({
     }
 
     const now = Date.now();
+
+    // If this brand-new user was invited (verified email matches a pending
+    // invite), join that company as a member instead of creating a personal
+    // one. Intercepting here avoids ever having to migrate an existing user.
+    const normalizedEmail = normalizeEmail(email);
+    const invite = normalizedEmail
+      ? await ctx.db
+          .query("invites")
+          .withIndex("by_email_and_status", (q) =>
+            q.eq("email", normalizedEmail).eq("status", "pending"),
+          )
+          .first()
+      : null;
+
+    if (invite) {
+      const userId = await ctx.db.insert("users", {
+        clerkUserId: identity.subject,
+        companyId: invite.companyId,
+        name,
+        email,
+        role: invite.role,
+        createdAt: now,
+      });
+      await ctx.db.patch(invite._id, {
+        status: "accepted",
+        acceptedAt: now,
+        acceptedByUserId: userId,
+      });
+      return userId;
+    }
+
     const companyId = await ctx.db.insert("companies", {
       name: name ? `${name}'s Company` : "My Company",
       createdAt: now,
@@ -68,5 +100,31 @@ export const store = mutation({
       role: "owner",
       createdAt: now,
     });
+  },
+});
+
+/** Office roster (Clerk users) for the current company. */
+export const listForCompany = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireCurrentUser(ctx);
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_company", (q) => q.eq("companyId", user.companyId))
+      .collect();
+
+    return users
+      .map((u) => ({
+        id: u._id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isSelf: u._id === user._id,
+      }))
+      .sort((a, b) => {
+        // Owners first, then alphabetical by name.
+        if (a.role !== b.role) return a.role === "owner" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
   },
 });

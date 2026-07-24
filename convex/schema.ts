@@ -310,6 +310,30 @@ export default defineSchema({
     }),
 
   /**
+   * Pending/settled invites for office (Clerk) users to join an existing
+   * company. A brand-new Clerk user whose verified email matches a `pending`
+   * invite is provisioned into that company as `member` (see `users.store`)
+   * instead of getting a fresh personal workspace.
+   */
+  invites: defineTable({
+    companyId: v.id("companies"),
+    /** Normalized (lowercased/trimmed) email — matches on sign-in. */
+    email: v.string(),
+    role: userRoleValidator,
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("revoked"),
+    ),
+    invitedBy: v.id("users"),
+    createdAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    acceptedByUserId: v.optional(v.id("users")),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_email_and_status", ["email", "status"]),
+
+  /**
    * Server-side PIN brute-force throttle for public `/entry/[companyId]`.
    * One row per company; the client lockout is bypassable so this is the
    * authoritative limit. Tradeoff: a determined attacker can throttle a whole

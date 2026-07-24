@@ -10,6 +10,7 @@
 
 import type * as ai from "../ai.js";
 import type * as companies from "../companies.js";
+import type * as invites from "../invites.js";
 import type * as jobs from "../jobs.js";
 import type * as leads from "../leads.js";
 import type * as teamMembers from "../teamMembers.js";
@@ -29,6 +30,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   companies: typeof companies;
+  invites: typeof invites;
   jobs: typeof jobs;
   leads: typeof leads;
   teamMembers: typeof teamMembers;

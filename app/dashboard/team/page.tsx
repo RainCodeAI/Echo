@@ -1,6 +1,7 @@
 "use client";
 
 import { EntryShareCard } from "@/components/team/entry-share-card";
+import { OfficeTeamManager } from "@/components/team/office-team-manager";
 import { TeamMembersManager } from "@/components/team/team-members-manager";
 import { useEntryUrl } from "@/hooks/use-entry-url";
 
@@ -19,6 +20,8 @@ export default function TeamPage() {
           Workers never need a Clerk account.
         </p>
       </div>
+
+      <OfficeTeamManager />
 
       <EntryShareCard
         companyName={companyName}
