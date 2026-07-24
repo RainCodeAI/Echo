@@ -84,6 +84,10 @@ export function FieldRecorder({
       ? crypto.randomUUID()
       : `upload-${Date.now()}`,
   );
+  // Cache successful uploads so a retry after a failed submit reuses the same
+  // storage blobs instead of orphaning a fresh copy each attempt.
+  const audioUploadIdRef = useRef<Id<"_storage"> | null>(null);
+  const photoUploadIdsRef = useRef<Map<string, Id<"_storage">>>(new Map());
 
   useEffect(() => {
     setSpeechSupported(!!getSpeechRecognitionConstructor());
@@ -155,7 +159,10 @@ export function FieldRecorder({
     setPhotos((current) => {
       const next = current.filter((_, i) => i !== index);
       const removed = current[index];
-      if (removed) URL.revokeObjectURL(removed.url);
+      if (removed) {
+        URL.revokeObjectURL(removed.url);
+        photoUploadIdsRef.current.delete(removed.url);
+      }
       return next;
     });
   }
@@ -165,6 +172,7 @@ export function FieldRecorder({
       current.forEach((p) => URL.revokeObjectURL(p.url));
       return [];
     });
+    photoUploadIdsRef.current.clear();
   }
 
   async function startRecording() {
@@ -173,6 +181,8 @@ export function FieldRecorder({
     setInterim("");
     setAudioBlob(null);
     finalTranscriptRef.current = "";
+    // New recording → the previously uploaded audio (if any) no longer applies.
+    audioUploadIdRef.current = null;
     clientUploadIdRef.current =
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
@@ -305,8 +315,8 @@ export function FieldRecorder({
     setError(null);
 
     try {
-      let audioStorageId: Id<"_storage"> | undefined;
-      if (audioBlob && audioBlob.size > 0) {
+      let audioStorageId = audioUploadIdRef.current ?? undefined;
+      if (audioBlob && audioBlob.size > 0 && !audioStorageId) {
         const uploadUrl = await generateUploadUrl({
           companyId,
           teamMemberId: member.id,
@@ -324,6 +334,7 @@ export function FieldRecorder({
         }
         const json = (await response.json()) as { storageId: Id<"_storage"> };
         audioStorageId = json.storageId;
+        audioUploadIdRef.current = json.storageId;
       }
 
       const uploadedPhotos: {
@@ -331,22 +342,29 @@ export function FieldRecorder({
         mimeType?: string;
       }[] = [];
       for (const photo of photos) {
-        const uploadUrl = await generateUploadUrl({
-          companyId,
-          teamMemberId: member.id,
-          verificationToken: member.verificationToken,
-        });
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": photo.file.type || "image/jpeg" },
-          body: photo.file,
-        });
-        if (!response.ok) {
-          throw new Error("Photo upload failed. Check your connection and retry.");
+        let storageId = photoUploadIdsRef.current.get(photo.url);
+        if (!storageId) {
+          const uploadUrl = await generateUploadUrl({
+            companyId,
+            teamMemberId: member.id,
+            verificationToken: member.verificationToken,
+          });
+          const response = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": photo.file.type || "image/jpeg" },
+            body: photo.file,
+          });
+          if (!response.ok) {
+            throw new Error(
+              "Photo upload failed. Check your connection and retry.",
+            );
+          }
+          const json = (await response.json()) as { storageId: Id<"_storage"> };
+          storageId = json.storageId;
+          photoUploadIdsRef.current.set(photo.url, storageId);
         }
-        const json = (await response.json()) as { storageId: Id<"_storage"> };
         uploadedPhotos.push({
-          storageId: json.storageId,
+          storageId,
           mimeType: photo.file.type || undefined,
         });
       }
@@ -384,6 +402,7 @@ export function FieldRecorder({
     setInterim("");
     setAudioBlob(null);
     clearPhotos();
+    audioUploadIdRef.current = null;
     setUrgent(false);
     setError(null);
     setElapsedMs(0);
