@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hashPin, isValidPin, safeEqualHex } from "../convex/lib/pin";
+import {
+  hashPin,
+  isValidPin,
+  lockoutDurationMs,
+  safeEqualHex,
+} from "../convex/lib/pin";
 
 describe("hashPin", () => {
   it("is deterministic for the same company + pin", async () => {
@@ -47,5 +52,19 @@ describe("isValidPin (server)", () => {
     expect(isValidPin("12345")).toBe(false);
     expect(isValidPin("12a4")).toBe(false);
     expect(isValidPin("")).toBe(false);
+  });
+});
+
+describe("lockoutDurationMs", () => {
+  it("escalates with consecutive lockouts", () => {
+    expect(lockoutDurationMs(1)).toBe(60_000);
+    expect(lockoutDurationMs(2)).toBe(5 * 60_000);
+    expect(lockoutDurationMs(3)).toBe(15 * 60_000);
+  });
+
+  it("caps at 15 minutes and tolerates out-of-range input", () => {
+    expect(lockoutDurationMs(50)).toBe(15 * 60_000);
+    expect(lockoutDurationMs(0)).toBe(60_000);
+    expect(lockoutDurationMs(-3)).toBe(60_000);
   });
 });

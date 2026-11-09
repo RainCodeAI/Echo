@@ -59,7 +59,13 @@ export const store = mutation({
     // If this brand-new user was invited (verified email matches a pending
     // invite), join that company as a member instead of creating a personal
     // one. Intercepting here avoids ever having to migrate an existing user.
-    const normalizedEmail = normalizeEmail(email);
+    //
+    // SECURITY: only trust the email from the signed JWT, never `args.email`
+    // (client-controlled) — otherwise anyone could claim another person's
+    // invite and join that company. Also refuse explicitly unverified emails.
+    const trustedEmail =
+      identity.email && identity.emailVerified !== false ? identity.email : "";
+    const normalizedEmail = normalizeEmail(trustedEmail);
     const invite = normalizedEmail
       ? await ctx.db
           .query("invites")

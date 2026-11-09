@@ -211,7 +211,9 @@ export default function NoteDetailPage({
         aiConfidence={note.aiConfidence}
         aiErrorMessage={note.aiErrorMessage}
         retrySlot={
-          note.aiStatus === "failed" || note.aiStatus === "pending" ? (
+          // Offered while pending/processing too: the server only allows it
+          // once a run looks stuck, otherwise it says the run is in progress.
+          note.aiStatus !== "completed" ? (
             <NoteAiRetryButton noteId={note._id} />
           ) : null
         }

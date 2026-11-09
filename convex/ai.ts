@@ -17,7 +17,11 @@ import {
  * OpenAI-backed enrichment for Echo voice notes.
  *
  * Pipeline per note:
- *  1. Optionally Whisper-transcribe when transcript is weak/empty and audio exists
+ *  1. Server-transcribe (Whisper) whenever audio exists. Browser speech
+ *     recognition is a live preview only — it is unreliable on job sites and
+ *     on iOS — so the server transcript becomes the primary text. Whatever
+ *     the phone captured (incl. typed corrections) is kept as
+ *     `deviceTranscript` and passed to the model as supporting context.
  *  2. Structure transcript into materials / actions / urgency / summary
  *
  * Requires on the Convex deployment:
@@ -27,7 +31,11 @@ import {
  */
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-const STRUCTURE_MAX_TOKENS = 900;
+/**
+ * Output budget for the structured JSON. 900 truncated long memos with many
+ * materials, which surfaced as an opaque JSON parse error.
+ */
+const STRUCTURE_MAX_TOKENS = 2_000;
 const MIN_TRANSCRIPT_CHARS = 12;
 
 function killSwitchOn(): boolean {
@@ -78,11 +86,18 @@ export const processNoteInternal = internalAction({
 
     let transcript = note.rawTranscript?.trim() ?? "";
     let transcriptSource = note.transcriptSource;
+    // Device text: explicit field for new notes; legacy notes only have it in
+    // rawTranscript when it was never replaced by the server transcript.
+    const deviceTranscript = (
+      note.deviceTranscript ??
+      (note.transcriptSource === "client" ? note.rawTranscript : "")
+    ).trim();
 
-    // --- Whisper when needed -----------------------------------------------
+    // --- Server transcription ----------------------------------------------
+    // Run whenever there is audio, unless a previous attempt already produced
+    // a server transcript (retries should not pay for Whisper twice).
     const needsWhisper =
-      !!note.audioStorageId &&
-      (transcript.length < MIN_TRANSCRIPT_CHARS || !transcript);
+      !!note.audioStorageId && transcriptSource !== "whisper";
 
     if (needsWhisper && note.audioStorageId) {
       try {
@@ -92,13 +107,14 @@ export const processNoteInternal = internalAction({
           const file = new File([blob], `note-${noteId}.${ext}`, {
             type: note.audioMimeType || "audio/webm",
           });
+          // No `language` hint: auto-detect so Spanish (and other) memos
+          // transcribe correctly instead of being forced through English.
           const whisper = await client.audio.transcriptions.create({
             file,
             model: "whisper-1",
-            language: "en",
           });
-          // We only reach here when the client transcript was too weak to use
-          // (see needsWhisper), so Whisper output fully replaces it.
+          // The server transcript becomes primary; the device text is kept
+          // in `deviceTranscript` and still shown to the model below.
           const whispered = (whisper.text ?? "").trim();
           if (whispered) {
             transcript = whispered;
@@ -138,7 +154,9 @@ export const processNoteInternal = internalAction({
     try {
       const completion = await client.chat.completions.create({
         model: MODEL,
-        max_tokens: STRUCTURE_MAX_TOKENS,
+        // `max_completion_tokens` works on both classic and reasoning models;
+        // `max_tokens` is rejected by newer OpenAI models.
+        max_completion_tokens: STRUCTURE_MAX_TOKENS,
         temperature: 0.2,
         response_format: {
           type: "json_schema",
@@ -154,12 +172,25 @@ export const processNoteInternal = internalAction({
               crewName,
               workerFlaggedUrgent: note.workerFlaggedUrgent,
               transcript,
+              deviceNotes:
+                transcriptSource === "whisper" && deviceTranscript !== transcript
+                  ? deviceTranscript
+                  : undefined,
             }),
           },
         ],
       });
 
-      const content = completion.choices[0]?.message?.content;
+      const choice = completion.choices[0];
+      if (choice?.finish_reason === "length") {
+        throw new Error(
+          "AI output was cut off (memo too long to structure in one pass). Retry, or split long memos.",
+        );
+      }
+      if (choice?.message?.refusal) {
+        throw new Error(`AI declined to structure this note: ${choice.message.refusal}`);
+      }
+      const content = choice?.message?.content;
       if (!content) {
         throw new Error("Empty model response.");
       }
