@@ -137,9 +137,17 @@ export default defineSchema({
     alertPhone: v.optional(v.string()),
     /** Master switch for urgent alerts. Opt-in: off until the owner enables it. */
     notificationsEnabled: v.optional(v.boolean()),
+    /** Daily digest email (opt-in), sent at `digestHour` in `timezone`. */
+    digestEnabled: v.optional(v.boolean()),
+    digestHour: v.optional(v.number()),
+    /** Local date ("YYYY-MM-DD") of the last digest claimed: one per day. */
+    lastDigestDateKey: v.optional(v.string()),
+    lastDigestAt: v.optional(v.number()),
+    /** "sent" | "quiet" | "failed: …" | "not_configured" | "no_recipient" */
+    lastDigestStatus: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }),
+  }).index("by_digest_enabled", ["digestEnabled"]),
 
   /** A person who signs in with Clerk (owners / office). Linked via `clerkUserId`. */
   users: defineTable({
