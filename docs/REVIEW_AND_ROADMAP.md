@@ -144,7 +144,7 @@ _The #1 trust killer in field software is losing someone's work._
       within 60s of an urgent or emergency note. Respects
       `notificationsEnabled`; one alert per note; 20/hour cap; delivery log on
       the note; Settings test button. _Needs Resend/Twilio keys to go live._
-- [ ] **Daily digest**: "7 notes from 3 crews, 2 need you, 14 materials
+- [x] **Daily digest** (opt-in, at the owner's local hour; quiet days skipped; uses the alert email setup): "7 notes from 3 crews, 2 need you, 14 materials
       requested."
 - [ ] Action items become checkable tasks with an assignee; open items roll
       up on the dashboard.

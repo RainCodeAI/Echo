@@ -42,6 +42,8 @@ export const update = mutation({
     notificationEmail: v.optional(v.string()),
     alertPhone: v.optional(v.string()),
     notificationsEnabled: v.optional(v.boolean()),
+    digestEnabled: v.optional(v.boolean()),
+    digestHour: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Owner-only per the role matrix in ARCHITECTURE.md (members: "Limited").
@@ -79,6 +81,15 @@ export const update = mutation({
     }
     if (args.notificationsEnabled !== undefined) {
       patch.notificationsEnabled = args.notificationsEnabled;
+    }
+    if (args.digestEnabled !== undefined) {
+      patch.digestEnabled = args.digestEnabled;
+    }
+    if (args.digestHour !== undefined) {
+      if (!Number.isInteger(args.digestHour) || args.digestHour < 0 || args.digestHour > 23) {
+        throw new Error("Digest time must be a whole hour between 0 and 23.");
+      }
+      patch.digestHour = args.digestHour;
     }
 
     await ctx.db.patch(user.companyId, patch);
