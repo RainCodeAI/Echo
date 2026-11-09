@@ -292,6 +292,24 @@ export default defineSchema({
 
     // --- Owner review ------------------------------------------------------
     ownerNote: v.optional(v.string()),
+    /**
+     * AI fields the owner corrected by hand. AI re-runs never overwrite these
+     * (see convex/lib/noteEdits.ts). Values: OWNER_EDITABLE_FIELDS.
+     */
+    ownerEditedFields: v.optional(
+      v.array(
+        v.union(
+          v.literal("title"),
+          v.literal("summary"),
+          v.literal("materials"),
+          v.literal("actionItems"),
+          v.literal("urgency"),
+          v.literal("siteAddress"),
+          v.literal("timelineNotes"),
+          v.literal("tags"),
+        ),
+      ),
+    ),
     reviewedBy: v.optional(v.id("users")),
     reviewedAt: v.optional(v.number()),
 

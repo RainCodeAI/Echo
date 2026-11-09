@@ -1,6 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { Pencil } from "lucide-react";
+
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { NoteAiEditor } from "@/components/notes/note-ai-editor";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -17,6 +25,9 @@ import type {
 } from "@/types";
 
 type NoteAiPanelProps = {
+  noteId: Id<"voiceNotes">;
+  /** Fields the owner corrected (kept when AI re-runs). */
+  ownerEditedFields?: string[];
   aiStatus: VoiceNoteAiStatus;
   aiTitle?: string;
   aiSummary?: string;
@@ -32,7 +43,33 @@ type NoteAiPanelProps = {
   retrySlot?: React.ReactNode;
 };
 
+/** Section label with an "Edited" marker when the owner changed it. */
+function FieldLabel({
+  children,
+  edited,
+  className = "",
+}: {
+  children: React.ReactNode;
+  edited?: boolean;
+  className?: string;
+}) {
+  return (
+    <p
+      className={`flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground ${className}`}
+    >
+      {children}
+      {edited ? (
+        <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-sky-800">
+          Edited
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
 export function NoteAiPanel({
+  noteId,
+  ownerEditedFields,
   aiStatus,
   aiTitle,
   aiSummary,
@@ -47,6 +84,26 @@ export function NoteAiPanel({
   retrySlot,
 }: NoteAiPanelProps) {
   const ai = AI_STATUS_MAP[aiStatus];
+  const [editing, setEditing] = useState(false);
+  // Optimistic: the tick shows instantly instead of waiting for the server.
+  const setCompleted = useMutation(
+    api.voiceNotes.setActionItemCompleted,
+  ).withOptimisticUpdate((store, { noteId: id, index, completed }) => {
+    const current = store.getQuery(api.voiceNotes.get, { noteId: id });
+    if (!current?.actionItems) return;
+    store.setQuery(
+      api.voiceNotes.get,
+      { noteId: id },
+      {
+        ...current,
+        actionItems: current.actionItems.map((item, i) =>
+          i === index ? { ...item, completed: completed || undefined } : item,
+        ),
+      },
+    );
+  });
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const edited = new Set(ownerEditedFields ?? []);
   const hasStructure =
     !!aiSummary ||
     (materials && materials.length > 0) ||
@@ -61,8 +118,36 @@ export function NoteAiPanel({
             Summary, materials, and actions extracted from the memo.
           </CardDescription>
         </div>
-        <Badge className={ai.badgeClass}>{ai.label}</Badge>
+        <div className="flex shrink-0 items-center gap-2">
+          {!editing ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Button>
+          ) : null}
+          <Badge className={`whitespace-nowrap ${ai.badgeClass}`}>{ai.label}</Badge>
+        </div>
       </CardHeader>
+      {editing ? (
+        <CardContent>
+          <NoteAiEditor
+            noteId={noteId}
+            aiTitle={aiTitle}
+            aiSummary={aiSummary}
+            materials={materials}
+            actionItems={actionItems}
+            siteAddress={siteAddress}
+            timelineNotes={timelineNotes}
+            tags={tags}
+            onDone={() => setEditing(false)}
+          />
+        </CardContent>
+      ) : (
       <CardContent className="space-y-4">
         {aiStatus === "failed" && aiErrorMessage ? (
           <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -84,36 +169,30 @@ export function NoteAiPanel({
 
         {aiTitle ? (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Title
-            </p>
+            <FieldLabel edited={edited.has("title")}>Title</FieldLabel>
             <p className="mt-1 font-medium">{aiTitle}</p>
           </div>
         ) : null}
 
         {aiSummary ? (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Summary
-            </p>
+            <FieldLabel edited={edited.has("summary")}>Summary</FieldLabel>
             <p className="mt-1 text-sm leading-relaxed">{aiSummary}</p>
           </div>
         ) : null}
 
         {siteAddress ? (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Site
-            </p>
+            <FieldLabel edited={edited.has("siteAddress")}>Site</FieldLabel>
             <p className="mt-1 text-sm">{siteAddress}</p>
           </div>
         ) : null}
 
         {materials && materials.length > 0 ? (
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <FieldLabel edited={edited.has("materials")} className="mb-2">
               Materials
-            </p>
+            </FieldLabel>
             <ul className="space-y-1.5 text-sm">
               {materials.map((m, i) => (
                 <li
@@ -138,16 +217,32 @@ export function NoteAiPanel({
 
         {actionItems && actionItems.length > 0 ? (
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <FieldLabel edited={edited.has("actionItems")} className="mb-2">
               Action items
-            </p>
+            </FieldLabel>
             <ul className="space-y-1.5 text-sm">
               {actionItems.map((item, i) => (
                 <li
                   key={`${item.title}-${i}`}
-                  className="rounded-md border bg-muted/30 px-3 py-2"
+                  className="flex items-start gap-2.5 rounded-md border bg-muted/30 px-3 py-2"
                 >
-                  <span className="font-medium">{item.title}</span>
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-input"
+                    aria-label={`Mark "${item.title}" done`}
+                    checked={!!item.completed}
+                    onChange={(e) => {
+                      setToggleError(null);
+                      setCompleted({ noteId, index: i, completed: e.target.checked }).catch(
+                        (err: unknown) =>
+                          setToggleError(err instanceof Error ? err.message : "Could not update."),
+                      );
+                    }}
+                  />
+                  <div className="min-w-0">
+                  <span className={`font-medium ${item.completed ? "text-muted-foreground line-through" : ""}`}>
+                    {item.title}
+                  </span>
                   {item.priority ? (
                     <span className="ml-2 text-xs capitalize text-muted-foreground">
                       ({item.priority})
@@ -158,17 +253,19 @@ export function NoteAiPanel({
                       {[item.assigneeHint, item.dueHint].filter(Boolean).join(" · ")}
                     </p>
                   ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
+            {toggleError ? (
+              <p className="mt-1 text-xs text-destructive">{toggleError}</p>
+            ) : null}
           </div>
         ) : null}
 
         {timelineNotes ? (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Timeline
-            </p>
+            <FieldLabel edited={edited.has("timelineNotes")}>Timeline</FieldLabel>
             <p className="mt-1 text-sm whitespace-pre-wrap">{timelineNotes}</p>
           </div>
         ) : null}
@@ -193,7 +290,12 @@ export function NoteAiPanel({
         ) : null}
 
         {tags && tags.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {edited.has("tags") ? (
+              <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800">
+                Edited tags
+              </span>
+            ) : null}
             {tags.map((tag) => (
               <Badge key={tag} variant="secondary">
                 {tag}
@@ -208,6 +310,7 @@ export function NoteAiPanel({
           </p>
         ) : null}
       </CardContent>
+      )}
     </Card>
   );
 }
