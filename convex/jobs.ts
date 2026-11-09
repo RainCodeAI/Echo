@@ -1,6 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
+import { requireFieldSession } from "./lib/fieldSession";
+import { selectFieldJobs } from "./lib/fieldJobs";
 import { jobStatusValidator } from "./schema";
 
 /**
@@ -134,5 +136,36 @@ export const update = mutation({
 
     await ctx.db.patch(args.jobId, patch);
     return args.jobId;
+  },
+});
+
+/**
+ * Field "Which job?" picker (PIN session, no Clerk). Returns crew-safe fields
+ * only. Returns null instead of throwing when the session is invalid, so the
+ * entry page can keep recording (the note is saved unlinked).
+ */
+export const listForField = query({
+  args: {
+    companyId: v.id("companies"),
+    teamMemberId: v.id("teamMembers"),
+    verificationToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      await requireFieldSession(ctx, args);
+    } catch {
+      return null;
+    }
+    const [inProgress, scheduled] = await Promise.all(
+      (["in_progress", "scheduled"] as const).map((status) =>
+        ctx.db
+          .query("jobs")
+          .withIndex("by_company_and_status", (q) =>
+            q.eq("companyId", args.companyId).eq("status", status),
+          )
+          .take(500),
+      ),
+    );
+    return selectFieldJobs([...inProgress, ...scheduled], Date.now());
   },
 });

@@ -75,6 +75,8 @@ export const createFromField = mutation({
     audioDurationMs: v.optional(v.number()),
     workerFlaggedUrgent: v.optional(v.boolean()),
     recordedAt: v.number(),
+    /** Job the worker picked on the entry page (optional). */
+    jobId: v.optional(v.id("jobs")),
     photos: v.optional(
       v.array(
         v.object({
@@ -160,9 +162,24 @@ export const createFromField = mutation({
         ? args.recordedAt
         : now;
 
+    // Link to the picked job (and its lead). A job that was deleted, or that
+    // belongs to another company, is dropped silently: a stale link from a
+    // phone's cached list must never stop a note from being saved.
+    let jobId: Id<"jobs"> | undefined;
+    let leadId: Id<"leads"> | undefined;
+    if (args.jobId) {
+      const job = await ctx.db.get(args.jobId);
+      if (job && job.companyId === session.companyId) {
+        jobId = job._id;
+        leadId = job.leadId;
+      }
+    }
+
     const noteId = await ctx.db.insert("voiceNotes", {
       companyId: session.companyId,
       teamMemberId: session.teamMemberId,
+      jobId,
+      leadId,
       status: "ready",
       rawTranscript: transcript,
       transcriptSource: transcript ? "client" : undefined,
@@ -810,11 +827,20 @@ export const getInternal = internalQuery({
 
     const company = await ctx.db.get(note.companyId);
 
+    let job: { title: string; address: string | null } | null = null;
+    if (note.jobId) {
+      const doc = await ctx.db.get(note.jobId);
+      if (doc && doc.companyId === note.companyId) {
+        job = { title: doc.title, address: doc.address ?? null };
+      }
+    }
+
     return {
       note,
       crewName,
       companyName: company?.name ?? "Company",
       primaryTrade: company?.primaryTrade ?? null,
+      job,
     };
   },
 });

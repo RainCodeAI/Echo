@@ -16,6 +16,8 @@ export type FieldDraft = {
   workerFlaggedUrgent: boolean;
   recordedAt: number;
   savedAt: number;
+  jobId?: string;
+  jobTitle?: string;
 };
 
 export function draftKey(companyId: string, teamMemberId: string) {

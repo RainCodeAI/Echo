@@ -59,7 +59,7 @@ export const processNoteInternal = internalAction({
     });
     if (!bundle) return;
 
-    const { note, crewName, companyName, primaryTrade } = bundle;
+    const { note, crewName, companyName, primaryTrade, job } = bundle;
     await ctx.runMutation(internal.voiceNotes.markAiProcessing, { noteId });
 
     const client = getClient();
@@ -145,6 +145,7 @@ export const processNoteInternal = internalAction({
         crewName,
         workerFlaggedUrgent: note.workerFlaggedUrgent,
         transcript,
+        job,
         deviceNotes:
           transcriptSource === "whisper" && deviceTranscript !== transcript
             ? deviceTranscript
