@@ -10,6 +10,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
 import { requireFieldSession } from "./lib/fieldSession";
+import { takeUploadSlot } from "./lib/uploadQuota";
 import {
   markEdited,
   mergeAiStructure,
@@ -54,7 +55,30 @@ export const generateFieldUploadUrl = mutation({
     verificationToken: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireFieldSession(ctx, args);
+    const session = await requireFieldSession(ctx, args);
+
+    const now = Date.now();
+    const quota = await ctx.db
+      .query("fieldUploadQuota")
+      .withIndex("by_member", (q) => q.eq("teamMemberId", session.teamMemberId))
+      .unique();
+    const slot = takeUploadSlot(quota, now);
+    if (!slot.allowed) {
+      // Worded as temporary: the field queue retries it later automatically.
+      throw new Error(
+        `Too many uploads from this crew login right now. Try again in ${Math.ceil(
+          slot.retryInMs / 60_000,
+        )} min.`,
+      );
+    }
+    if (quota) {
+      await ctx.db.patch(quota._id, slot.next);
+    } else {
+      await ctx.db.insert("fieldUploadQuota", {
+        teamMemberId: session.teamMemberId,
+        ...slot.next,
+      });
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -115,15 +139,15 @@ export const createFromField = mutation({
 
     const now = Date.now();
 
-    // Enforce the audio size cap server-side. The blob is already in storage,
-    // so an oversized upload is deleted here rather than left orphaned.
+    // Enforce the audio size cap server-side. Rejected uploads are NOT deleted
+    // here: storage ids are client-supplied, so this path never deletes files.
+    // The daily orphaned-upload cleanup (convex/storageCleanup.ts) removes them.
     if (args.audioStorageId) {
       const meta = await ctx.db.system.get(args.audioStorageId);
       if (!meta) {
         throw new Error("Audio upload was not found. Please re-record.");
       }
       if (meta.size > MAX_AUDIO_BYTES) {
-        await ctx.storage.delete(args.audioStorageId);
         throw new Error(
           `Recording is too large (max ${Math.round(
             MAX_AUDIO_BYTES / (1024 * 1024),
@@ -136,7 +160,8 @@ export const createFromField = mutation({
     // SECURITY: do not delete blobs here. Storage ids are client-supplied and
     // could point at another note's audio (which is larger than the photo
     // cap), so deleting "oversized photos" would let a crafted request
-    // destroy existing recordings. Orphaned uploads are a cleanup-job concern.
+    // destroy existing recordings. Orphaned uploads are removed by the daily
+    // cleanup job (convex/storageCleanup.ts).
     const photos = args.photos ?? [];
     if (photos.length > MAX_PHOTOS) {
       throw new Error(`Attach at most ${MAX_PHOTOS} photos.`);
