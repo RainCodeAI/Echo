@@ -357,8 +357,8 @@ Field path priority: **record → submit → confirm saved**. Everything else
 | Phase | Status |
 | ----- | ------ |
 | 1 — Architecture & documentation | Done |
-| 2 — App scaffold (Next.js, Clerk, Convex providers, shell, teamMembers) | In progress |
-| 3 — Capture + AI + dashboard MVP | Not started |
+| 2 — App scaffold (Next.js, Clerk, Convex providers, shell, teamMembers) | Done |
+| 3 — Capture + AI + dashboard MVP | Done (pilot-ready after Phase 0 ops work) |
 
-Phase 2 delivers scaffold + providers + owner shell + public entry route.
-Full recorder UI and AI enrichment are Phase 3.
+See [docs/REVIEW_AND_ROADMAP.md](docs/REVIEW_AND_ROADMAP.md) for the latest
+code review, bug-sweep results, and the forward roadmap.
