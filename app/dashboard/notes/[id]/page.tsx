@@ -14,6 +14,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { NoteAiPanel } from "@/components/notes/note-ai-panel";
 import { NoteAiRetryButton } from "@/components/notes/note-ai-retry-button";
+import { NoteAlerts } from "@/components/notes/note-alerts";
 import { NoteLinks } from "@/components/notes/note-links";
 import { NoteOwnerFields } from "@/components/notes/note-owner-fields";
 import { NoteReviewActions } from "@/components/notes/note-review-actions";
@@ -116,6 +117,7 @@ export default function NoteDetailPage({
             ? ` · transcript: ${note.transcriptSource}`
             : ""}
         </p>
+        <NoteAlerts noteId={note._id} />
         {note.leadName || note.jobTitle ? (
           <p className="text-sm text-muted-foreground">
             {note.leadName ? `Lead: ${note.leadName}` : ""}

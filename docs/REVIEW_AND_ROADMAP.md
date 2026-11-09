@@ -140,9 +140,10 @@ _The #1 trust killer in field software is losing someone's work._
       (`tests/convex/`, mutation-checked).
 
 ### Phase 2 — "Close the loop" (≈3–4 weeks) — _this is the product_
-- [ ] **Urgent alerts**: SMS (Twilio) and/or email (Resend) to the owner
+- [x] **Urgent alerts**: SMS (Twilio) and/or email (Resend) to the owner
       within 60s of an urgent or emergency note. Respects
-      `notificationsEnabled`.
+      `notificationsEnabled`; one alert per note; 20/hour cap; delivery log on
+      the note; Settings test button. _Needs Resend/Twilio keys to go live._
 - [ ] **Daily digest**: "7 notes from 3 crews, 2 need you, 14 materials
       requested."
 - [ ] Action items become checkable tasks with an assignee; open items roll

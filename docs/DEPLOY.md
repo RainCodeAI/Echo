@@ -62,6 +62,37 @@ npx convex env set --prod OPENAI_MODEL gpt-4o-mini
 npx convex env set --prod OPENAI_TRANSCRIBE_MODEL whisper-1
 ```
 
+**Urgent alerts** (optional per channel; each switches on when its keys are set):
+
+```bash
+npx convex env set --prod APP_URL https://echo.raincode.ai
+```
+
+```bash
+npx convex env set --prod ALERT_FROM_EMAIL "Echo Alerts <alerts@raincode.ai>"
+```
+
+```bash
+npx convex env set --prod RESEND_API_KEY
+```
+
+```bash
+npx convex env set --prod TWILIO_ACCOUNT_SID
+```
+
+```bash
+npx convex env set --prod TWILIO_AUTH_TOKEN
+```
+
+```bash
+npx convex env set --prod TWILIO_FROM_NUMBER +15550001111
+```
+
+The `ALERT_FROM_EMAIL` domain must be verified in Resend. For US texting,
+Twilio requires the sending number to be registered (A2P 10DLC or toll-free
+verification) before carriers deliver messages reliably. Start that early:
+it can take days.
+
 Then create a **Production deploy key**: Convex dashboard → Project Settings
 → Deploy keys. Keep it for step 3.
 
@@ -174,6 +205,10 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       works.
 - [ ] Invite a second email from **Team**, sign up with it, and confirm it
       joins the same company as *Member* and can't edit company settings.
+- [ ] **Alerts:** in Settings, add an alert mobile, tick *Urgent alerts*, save,
+      then *Send test alert*. Both channels say "sent ✓" and arrive.
+- [ ] Record a note flagged urgent. The text/email arrives within about a
+      minute with the AI summary, and the note page shows "Urgent alert by text…".
 - [ ] Sentry (if configured): trigger a test error and confirm it arrives.
 
 ### Rollback

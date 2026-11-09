@@ -1,6 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireCurrentUser, requireOwner } from "./lib/tenant";
+import { normalizePhone } from "./lib/alerts";
+import { isValidEmail } from "./lib/email";
 import { serviceTypeValidator } from "./schema";
 
 /**
@@ -38,6 +40,7 @@ export const update = mutation({
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
     notificationEmail: v.optional(v.string()),
+    alertPhone: v.optional(v.string()),
     notificationsEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -55,7 +58,24 @@ export const update = mutation({
       patch.timezone = args.timezone.trim() || undefined;
     }
     if (args.notificationEmail !== undefined) {
-      patch.notificationEmail = args.notificationEmail.trim() || undefined;
+      const email = args.notificationEmail.trim();
+      if (email && !isValidEmail(email)) {
+        throw new Error("Enter a valid alert email address.");
+      }
+      patch.notificationEmail = email || undefined;
+    }
+    if (args.alertPhone !== undefined) {
+      if (!args.alertPhone.trim()) {
+        patch.alertPhone = undefined;
+      } else {
+        const phone = normalizePhone(args.alertPhone);
+        if (!phone) {
+          throw new Error(
+            "Enter a valid mobile number, e.g. (555) 123-4567 or +44 20 7946 0958.",
+          );
+        }
+        patch.alertPhone = phone;
+      }
     }
     if (args.notificationsEnabled !== undefined) {
       patch.notificationsEnabled = args.notificationsEnabled;
