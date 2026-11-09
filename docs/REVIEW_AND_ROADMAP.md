@@ -73,9 +73,8 @@ New tests: TTL regression, lockout escalation, prompt device-notes (29 → 34).
 - ~~`openai` v4 SDK / `zod` advisory~~ — fixed in Phase 0 (SDK v7, zod 4).
 - ~~AI retry overwrites an owner's manual urgency~~ — fixed in Phase 1
   (owner-edited fields are protected from AI re-runs).
-- **Orphaned storage**: abandoned uploads, oversized/rejected uploads, and
-  `generateFieldUploadUrl` has no per-session cap. → Phase 1 cleanup cron +
-  rate limit.
+- ~~Orphaned storage / uncapped upload URLs~~ — fixed in Phase 1 (daily
+  cleanup cron + per-crew-member upload limit).
 - **Search/filter is in-memory over the latest 200 notes**, so older notes
   aren't searchable, and `dashboardStats` scans every note. The search indexes
   already exist in the schema. → Phase 3.
@@ -133,11 +132,12 @@ _The #1 trust killer in field software is losing someone's work._
       be ticked off.
 - [x] Field-side "today's jobs" picker so notes arrive pre-linked (works
       offline from a cached list; remembers the last job per crew member).
-- [ ] Storage-cleanup cron for orphaned uploads; per-session upload cap.
-- [ ] `convex-test` integration tests for tenancy and auth boundaries
-      (cross-tenant reads, invite flow, field-session checks). _Started:
-      convex-test is set up (`tests/convex/`), covering the invite fix and
-      owner edits._
+- [x] Storage-cleanup cron for orphaned uploads (daily, 24h grace, dry-run);
+      per-crew-member upload cap (120/hour).
+- [x] `convex-test` integration tests for tenancy and auth boundaries:
+      cross-company reads/writes/links, invite flow, field-session checks,
+      PIN lockout escalation, upload limit, owner-only actions
+      (`tests/convex/`, mutation-checked).
 
 ### Phase 2 — "Close the loop" (≈3–4 weeks) — _this is the product_
 - [ ] **Urgent alerts**: SMS (Twilio) and/or email (Resend) to the owner

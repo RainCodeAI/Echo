@@ -389,11 +389,22 @@ linked job's title and site go into the AI prompt as context.
 - Serving: `ctx.storage.getUrl(storageId)` inside a query that already
   verified the parent note’s `companyId`.
 
-**Limits (recommended defaults)**
+**Limits (enforced)**
 
-- Audio: ~5–10 minutes per note; reject larger client-side
-- Photos: ~5–10 per note; compress client-side before upload
-- Enforce size checks in create mutation when possible
+- Audio: 10-minute auto-stop on the phone; 25 MB cap checked server-side.
+- Photos: up to 6 per note, 10 MB each, checked server-side.
+- Upload URLs: 120 per crew member per hour (`convex/lib/uploadQuota.ts`).
+  The phone's queue treats hitting it as "retry later".
+
+**Orphaned uploads.** The field endpoint never deletes files (storage ids
+there are client-supplied, so deleting would be an attack surface). Instead a
+daily cron (`convex/crons.ts` → `convex/storageCleanup.ts`) deletes files
+older than 24h that no `voiceNotes.audioStorageId` or
+`voiceNotePhotos.storageId` references. It runs in batches, supports
+`dryRun`, and is switched off with `STORAGE_CLEANUP_DISABLED=1`. **Any new
+table that stores a `_storage` id must be added to that reference check.**
+If a phone's queued note needed a file the cleanup removed, the queue sees
+"upload was not found" and re-uploads from the phone's copy.
 
 ---
 
@@ -473,13 +484,23 @@ Field entry is sparse and mobile-first; dashboard is scannable tables/cards.
 
 ## 11. Security checklist
 
-- [ ] OpenAI key only on Convex env, never `NEXT_PUBLIC_*`
-- [ ] Every query/mutation uses `requireCompanyId` / `assertSameCompany`
-- [ ] Client cannot set `companyId` or `recordedBy` arbitrarily
-- [ ] Storage URLs only after note ownership check
-- [ ] Generic not-found errors on cross-tenant access
-- [ ] Rate-limit public endpoints if any are added later
-- [ ] Validate AI JSON against Convex validators before write
+Items marked ✅ are covered by integration tests in `tests/convex/`
+(run against the real Convex functions with convex-test).
+
+- [x] OpenAI key only on Convex env, never `NEXT_PUBLIC_*`
+- [x] Every query/mutation uses `requireCurrentUser` / `assertSameCompany` ✅
+      (cross-company reads return nothing; writes and links throw `Not found`)
+- [x] Client cannot set `companyId` or `recordedBy` arbitrarily ✅
+      (field writes take company/member only from a signed session token)
+- [x] Storage URLs only after note ownership check
+- [x] Generic not-found errors on cross-tenant access ✅
+- [x] Rate-limited public endpoints ✅: PIN entry (escalating lockout per
+      company), field upload URLs (per crew member)
+- [x] Field sessions: forged, expired, cross-company and other-member tokens
+      rejected; deactivating a member cuts access immediately ✅
+- [x] Invites only claimable with the verified JWT email ✅
+- [x] Owner-only: company settings, invites ✅
+- [x] Validate AI JSON against Convex validators before write
 
 ---
 

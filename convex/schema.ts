@@ -326,6 +326,8 @@ export default defineSchema({
     .index("by_lead", ["leadId"])
     .index("by_job", ["jobId"])
     .index("by_client_upload_id", ["companyId", "clientUploadId"])
+    // Reference lookup for the orphaned-upload cleanup (convex/storageCleanup.ts).
+    .index("by_audio_storage", ["audioStorageId"])
     .searchIndex("search_transcript", {
       searchField: "rawTranscript",
       filterFields: ["companyId", "status"],
@@ -378,7 +380,13 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_company", ["companyId"]),
 
-  /** Photos attached to a voice note (binaries in Convex file storage). */
+  /**
+   * Photos attached to a voice note (binaries in Convex file storage).
+   *
+   * NOTE: every table that references `_storage` must be checked by the
+   * orphaned-upload cleanup (convex/storageCleanup.ts), or its files will be
+   * deleted after 24h. Today: voiceNotes.audioStorageId, voiceNotePhotos.storageId.
+   */
   voiceNotePhotos: defineTable({
     companyId: v.id("companies"),
     voiceNoteId: v.id("voiceNotes"),
@@ -390,5 +398,17 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_note", ["voiceNoteId"])
-    .index("by_company", ["companyId"]),
+    .index("by_company", ["companyId"])
+    // Reference lookup for the orphaned-upload cleanup (convex/storageCleanup.ts).
+    .index("by_storage", ["storageId"]),
+
+  /**
+   * Field upload-URL rate limit, one row per crew member (rolling window).
+   * Stops a leaked or scripted field session from minting unlimited uploads.
+   */
+  fieldUploadQuota: defineTable({
+    teamMemberId: v.id("teamMembers"),
+    windowStartedAt: v.number(),
+    count: v.number(),
+  }).index("by_member", ["teamMemberId"]),
 });
