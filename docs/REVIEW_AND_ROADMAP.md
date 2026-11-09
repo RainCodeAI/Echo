@@ -131,7 +131,8 @@ _The #1 trust killer in field software is losing someone's work._
 - [x] Owner can edit the transcript and AI fields; mark "owner-set" so AI
       retries don't clobber them (fixes known issue above). Action items can
       be ticked off.
-- [ ] Field-side "today's jobs" picker so notes arrive pre-linked.
+- [x] Field-side "today's jobs" picker so notes arrive pre-linked (works
+      offline from a cached list; remembers the last job per crew member).
 - [ ] Storage-cleanup cron for orphaned uploads; per-session upload cap.
 - [ ] `convex-test` integration tests for tenancy and auth boundaries
       (cross-tenant reads, invite flow, field-session checks). _Started:

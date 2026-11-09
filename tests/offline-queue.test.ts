@@ -225,6 +225,12 @@ describe("sendQueuedNote", () => {
     expect(result.item.nextAttemptAt).toBe(NOW);
   });
 
+  it("passes the picked job through to the server", async () => {
+    const { deps } = fakeDeps();
+    await sendQueuedNote(note({ jobId: "job-7", jobTitle: "Ramirez reroof" }), deps);
+    expect(vi.mocked(deps.createNote).mock.calls[0][0].jobId).toBe("job-7");
+  });
+
   it("sends a transcript-only note without uploads", async () => {
     const { deps } = fakeDeps();
     await sendQueuedNote(note({ audio: undefined, photos: [], photoStorageIds: [] }), deps);

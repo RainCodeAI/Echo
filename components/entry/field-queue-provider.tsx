@@ -99,6 +99,7 @@ export function FieldQueueProvider({
               companyId: args.companyId as Id<"companies">,
               teamMemberId: args.teamMemberId as Id<"teamMembers">,
               audioStorageId: args.audioStorageId as Id<"_storage"> | undefined,
+              jobId: args.jobId as Id<"jobs"> | undefined,
               photos: args.photos?.map((p) => ({
                 storageId: p.storageId as Id<"_storage">,
                 mimeType: p.mimeType,

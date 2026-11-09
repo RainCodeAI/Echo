@@ -355,12 +355,24 @@ operational objects without requiring SiteAssist as a hard dependency.
 
 | Direction | Behavior |
 | --------- | -------- |
-| Capture | Optional picker: unlinked / lead / job |
+| Capture | "Which job?" picker on the entry page (see below); unlinked is fine |
 | Review | Link or re-link note; show related notes on lead/job views |
 | AI | `suggestedJobUpdates` are **proposals** until owner applies them |
 | Future | Deep-link or sync ids with SiteAssist when product graph matures |
 
 Do not auto-mutate job status from AI without an explicit owner action in MVP.
+
+**Field job picker.** `jobs.listForField` (PIN session; returns `null`, not an
+error, when the session is invalid) feeds the picker via
+`convex/lib/fieldJobs.ts`: *Today* = every in-progress job plus scheduled jobs
+from 18h ago to 30h ahead (a window, not a calendar day, since company timezone
+is optional); *Other open jobs* = the rest of the open jobs, capped. It returns
+only crew-safe fields (title, status, time, address), never customer contact
+details or job notes. The phone caches the last list and each member's last
+pick (one shift), so the picker works offline and repeat notes are one tap.
+`createFromField({ jobId })` links the job and its lead. A deleted or foreign
+job is dropped silently, so a stale cached link never blocks a note. The
+linked job's title and site go into the AI prompt as context.
 
 ---
 

@@ -41,6 +41,9 @@ export type QueuedNote = {
   workerFlaggedUrgent: boolean;
   recordedAt: number;
   queuedAt: number;
+  /** Job picked on the entry page (title kept for display while queued). */
+  jobId?: string;
+  jobTitle?: string;
 
   status: QueueStatus;
   attempts: number;
@@ -75,6 +78,7 @@ export type SendDeps = {
     audioDurationMs?: number;
     workerFlaggedUrgent?: boolean;
     recordedAt: number;
+    jobId?: string;
     photos?: { storageId: string; mimeType?: string }[];
   }) => Promise<string>;
   /** Persist an item's updated state (progress, status, errors). */
@@ -221,6 +225,7 @@ export async function sendQueuedNote(
       audioDurationMs: item.audioDurationMs,
       workerFlaggedUrgent: item.workerFlaggedUrgent,
       recordedAt: item.recordedAt,
+      jobId: item.jobId,
       photos: item.photos.length
         ? item.photos.map((p, i) => ({
             storageId: photoIds[i] as string,
@@ -283,6 +288,8 @@ export function createQueuedNote(input: {
   photos: QueuedPhoto[];
   workerFlaggedUrgent: boolean;
   recordedAt: number;
+  jobId?: string;
+  jobTitle?: string;
   now: number;
 }): QueuedNote {
   return {
@@ -298,6 +305,8 @@ export function createQueuedNote(input: {
     workerFlaggedUrgent: input.workerFlaggedUrgent,
     recordedAt: input.recordedAt || input.now,
     queuedAt: input.now,
+    jobId: input.jobId || undefined,
+    jobTitle: input.jobId ? input.jobTitle : undefined,
     status: "pending",
     attempts: 0,
     nextAttemptAt: input.now,

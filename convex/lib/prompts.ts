@@ -35,6 +35,7 @@ export const STRUCTURE_NOTE_SYSTEM_PROMPT = renderSystemPrompt({
   parameters: [
     "Use only facts supported by the transcript (and any explicit worker urgency flag).",
     "The memo may be in any language (often Spanish). Always write title, summary, materials, action items, and notes in English for the office.",
+    "If a 'Linked job' is given, it is the job the worker picked. Use its site address for siteAddress unless the memo clearly names a different site.",
     "If 'Worker's on-device notes' are provided, they are a lower-quality live transcript plus anything the worker typed. Use them to fill gaps or correct names/numbers the worker typed explicitly; prefer the main transcript otherwise.",
     "If something is unclear, omit it or put a short note in timelineNotes — do not invent.",
     "Materials: name required; quantity/unit/notes when mentioned.",
@@ -132,11 +133,16 @@ export function buildStructureUserPrompt(input: {
   transcript: string;
   /** Phone-side transcript/typed text when it differs from `transcript`. */
   deviceNotes?: string;
+  /** Job the note is linked to, if any. */
+  job?: { title: string; address?: string | null } | null;
 }): string {
   return [
     `Company: ${input.companyName}`,
     input.primaryTrade ? `Primary trade: ${input.primaryTrade}` : null,
     input.crewName ? `Recorded by: ${input.crewName}` : null,
+    input.job
+      ? `Linked job: ${input.job.title}${input.job.address ? ` (site: ${input.job.address})` : ""}`
+      : null,
     `Worker flagged urgent: ${input.workerFlaggedUrgent ? "yes" : "no"}`,
     "",
     "Transcript:",
