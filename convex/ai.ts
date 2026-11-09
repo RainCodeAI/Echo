@@ -4,14 +4,13 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import OpenAI from "openai";
+import { sanitizeStructuredNote, URGENCY_VALUES } from "./lib/prompts";
 import {
-  STRUCTURE_NOTE_JSON_SCHEMA,
-  STRUCTURE_NOTE_SYSTEM_PROMPT,
-  buildStructureUserPrompt,
-  sanitizeStructuredNote,
-  type StructuredNoteModel,
-  URGENCY_VALUES,
-} from "./lib/prompts";
+  DEFAULT_STRUCTURE_MODEL,
+  DEFAULT_TRANSCRIBE_MODEL,
+  requestStructuredNote,
+  transcribeAudio,
+} from "./lib/openaiCalls";
 
 /**
  * OpenAI-backed enrichment for Echo voice notes.
@@ -28,14 +27,12 @@ import {
  *   npx convex env set OPENAI_API_KEY sk-...
  * Optional:
  *   npx convex env set OPENAI_MODEL gpt-4o-mini
+ *   npx convex env set OPENAI_TRANSCRIBE_MODEL whisper-1   (or gpt-4o-transcribe)
  */
 
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-/**
- * Output budget for the structured JSON. 900 truncated long memos with many
- * materials, which surfaced as an opaque JSON parse error.
- */
-const STRUCTURE_MAX_TOKENS = 2_000;
+const MODEL = process.env.OPENAI_MODEL || DEFAULT_STRUCTURE_MODEL;
+const TRANSCRIBE_MODEL =
+  process.env.OPENAI_TRANSCRIBE_MODEL || DEFAULT_TRANSCRIBE_MODEL;
 const MIN_TRANSCRIPT_CHARS = 12;
 
 function killSwitchOn(): boolean {
@@ -48,15 +45,6 @@ function getClient(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   return new OpenAI({ apiKey });
-}
-
-function mimeToExtension(mime?: string): string {
-  if (!mime) return "webm";
-  if (mime.includes("mp4") || mime.includes("m4a")) return "mp4";
-  if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
-  if (mime.includes("ogg")) return "ogg";
-  if (mime.includes("wav")) return "wav";
-  return "webm";
 }
 
 /**
@@ -103,19 +91,14 @@ export const processNoteInternal = internalAction({
       try {
         const blob = await ctx.storage.get(note.audioStorageId);
         if (blob) {
-          const ext = mimeToExtension(note.audioMimeType);
-          const file = new File([blob], `note-${noteId}.${ext}`, {
-            type: note.audioMimeType || "audio/webm",
-          });
-          // No `language` hint: auto-detect so Spanish (and other) memos
-          // transcribe correctly instead of being forced through English.
-          const whisper = await client.audio.transcriptions.create({
-            file,
-            model: "whisper-1",
-          });
           // The server transcript becomes primary; the device text is kept
           // in `deviceTranscript` and still shown to the model below.
-          const whispered = (whisper.text ?? "").trim();
+          const whispered = await transcribeAudio(client, {
+            audio: blob,
+            fileName: `note-${noteId}`,
+            mimeType: note.audioMimeType,
+            model: TRANSCRIBE_MODEL,
+          });
           if (whispered) {
             transcript = whispered;
             transcriptSource = "whisper";
@@ -152,50 +135,18 @@ export const processNoteInternal = internalAction({
 
     // --- Structure ---------------------------------------------------------
     try {
-      const completion = await client.chat.completions.create({
+      const parsed = await requestStructuredNote(client, {
         model: MODEL,
-        // `max_completion_tokens` works on both classic and reasoning models;
-        // `max_tokens` is rejected by newer OpenAI models.
-        max_completion_tokens: STRUCTURE_MAX_TOKENS,
-        temperature: 0.2,
-        response_format: {
-          type: "json_schema",
-          json_schema: STRUCTURE_NOTE_JSON_SCHEMA,
-        },
-        messages: [
-          { role: "system", content: STRUCTURE_NOTE_SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: buildStructureUserPrompt({
-              companyName,
-              primaryTrade,
-              crewName,
-              workerFlaggedUrgent: note.workerFlaggedUrgent,
-              transcript,
-              deviceNotes:
-                transcriptSource === "whisper" && deviceTranscript !== transcript
-                  ? deviceTranscript
-                  : undefined,
-            }),
-          },
-        ],
+        companyName,
+        primaryTrade,
+        crewName,
+        workerFlaggedUrgent: note.workerFlaggedUrgent,
+        transcript,
+        deviceNotes:
+          transcriptSource === "whisper" && deviceTranscript !== transcript
+            ? deviceTranscript
+            : undefined,
       });
-
-      const choice = completion.choices[0];
-      if (choice?.finish_reason === "length") {
-        throw new Error(
-          "AI output was cut off (memo too long to structure in one pass). Retry, or split long memos.",
-        );
-      }
-      if (choice?.message?.refusal) {
-        throw new Error(`AI declined to structure this note: ${choice.message.refusal}`);
-      }
-      const content = choice?.message?.content;
-      if (!content) {
-        throw new Error("Empty model response.");
-      }
-
-      const parsed = JSON.parse(content) as StructuredNoteModel;
       if (!URGENCY_VALUES.includes(parsed.urgency)) {
         parsed.urgency = note.workerFlaggedUrgent ? "high" : "medium";
       }
