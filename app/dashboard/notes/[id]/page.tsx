@@ -17,6 +17,7 @@ import { NoteAiRetryButton } from "@/components/notes/note-ai-retry-button";
 import { NoteLinks } from "@/components/notes/note-links";
 import { NoteOwnerFields } from "@/components/notes/note-owner-fields";
 import { NoteReviewActions } from "@/components/notes/note-review-actions";
+import { NoteTranscriptEditor } from "@/components/notes/note-transcript-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -143,21 +144,12 @@ export default function NoteDetailPage({
             <p className="text-sm text-muted-foreground">No audio attached.</p>
           )}
 
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Transcript
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">
-              {note.rawTranscript?.trim() || (
-                <span className="text-muted-foreground">
-                  No transcript yet
-                  {note.audioStorageId
-                    ? " — audio is saved; Whisper can fill this in."
-                    : "."}
-                </span>
-              )}
-            </p>
-          </div>
+          <NoteTranscriptEditor
+            noteId={note._id}
+            rawTranscript={note.rawTranscript ?? ""}
+            transcriptSource={note.transcriptSource}
+            hasAudio={!!note.audioStorageId}
+          />
 
           {note.photos && note.photos.length > 0 ? (
             <div>
@@ -199,6 +191,8 @@ export default function NoteDetailPage({
       </Card>
 
       <NoteAiPanel
+        noteId={note._id}
+        ownerEditedFields={note.ownerEditedFields}
         aiStatus={note.aiStatus}
         aiTitle={note.aiTitle}
         aiSummary={note.aiSummary}
@@ -214,7 +208,10 @@ export default function NoteDetailPage({
           // Offered while pending/processing too: the server only allows it
           // once a run looks stuck, otherwise it says the run is in progress.
           note.aiStatus !== "completed" ? (
-            <NoteAiRetryButton noteId={note._id} />
+            <NoteAiRetryButton
+              noteId={note._id}
+              hasOwnerEdits={(note.ownerEditedFields?.length ?? 0) > 0}
+            />
           ) : null
         }
       />

@@ -333,6 +333,19 @@ structureNote action starts
 - Retry AI: public mutation/action gated by tenant check; only re-runs
   structuring, never deletes media/transcript.
 
+**Owner corrections always win** (`convex/lib/noteEdits.ts`):
+
+- `updateAiFields` (title, summary, materials, action items, site, timeline,
+  tags), `setActionItemCompleted`, and an actual urgency change in
+  `updateReview`/`setUrgency` add the field to `voiceNotes.ownerEditedFields`.
+- `applyAiStructure` runs every AI result through `mergeAiStructure`, which
+  skips those fields, so a retry or re-run can't undo the office's fixes.
+  `requestAiRetry({ overwriteOwnerEdits: true })` clears the set on purpose.
+- `updateTranscript` stores the owner's text with `transcriptSource: "manual"`.
+  The AI action never re-transcribes over a manual transcript, and because the
+  AI's input changed, the retry budget resets. `rerunAi: true` re-structures
+  immediately.
+
 ---
 
 ## 7. Leads and jobs integration

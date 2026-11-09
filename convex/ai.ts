@@ -83,9 +83,12 @@ export const processNoteInternal = internalAction({
 
     // --- Server transcription ----------------------------------------------
     // Run whenever there is audio, unless a previous attempt already produced
-    // a server transcript (retries should not pay for Whisper twice).
+    // a server transcript (retries should not pay for Whisper twice) or the
+    // owner corrected the transcript by hand (never overwrite their fix).
     const needsWhisper =
-      !!note.audioStorageId && transcriptSource !== "whisper";
+      !!note.audioStorageId &&
+      transcriptSource !== "whisper" &&
+      transcriptSource !== "manual";
 
     if (needsWhisper && note.audioStorageId) {
       try {
