@@ -122,7 +122,8 @@ shadcn/ui + field UI                         OpenAI API (server-side only)
 - **Reactive review.** Owner dashboards subscribe to Convex queries; when
   structuring completes, the UI updates without a manual refresh.
 - **Field reliability.** Client upload ids for idempotency, clear AI error
-  states, offline-friendly capture queue (planned; see Future expansion).
+  states, and an offline-first capture queue: notes are saved on the phone and
+  sent automatically when signal returns (ARCHITECTURE.md §9).
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for layer-by-layer detail (voice
 pipeline, AI structuring, tenant isolation, offline strategy).
@@ -324,7 +325,7 @@ Open <http://localhost:3000>, sign up, and land on a freshly provisioned workspa
 3. **Server Whisper** — after upload, re-transcribe when audio exists for accuracy / longer memos
 4. **AI structuring** — summary, materials, action items, urgency, suggested job updates
 5. **Tenant scoping** — `companyId` isolation via `convex/lib/tenant.ts`
-6. **PWA** — installable shell (manifest + basic SW); full offline queue later
+6. **PWA + offline capture** — installable shell; notes queue on the phone (IndexedDB) and send when back online
 
 ---
 
@@ -332,7 +333,7 @@ Open <http://localhost:3000>, sign up, and land on a freshly provisioned workspa
 
 Rough priority after MVP:
 
-1. **Offline-first capture queue** — IndexedDB queue + background sync; `clientUploadId` already supports idempotent retries.
+1. ~~**Offline-first capture queue**~~ — shipped (see ARCHITECTURE.md §9). Possible follow-up: Background Sync on Android.
 2. **Hardened field tokens** — HMAC submission tokens + server PIN lockouts (Relay pattern).
 3. **Push / email digests** — daily briefing of unreviewed notes and urgent alerts.
 4. **Cross-product deep links** — open the same lead/job in SiteAssist or convert materials into a Quill estimate draft.

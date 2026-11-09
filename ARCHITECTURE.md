@@ -374,32 +374,56 @@ Do not auto-mutate job status from AI without an explicit owner action in MVP.
 
 ## 9. Offline and field reliability
 
-### MVP (online-first, failure-tolerant)
-
-- Large touch targets, explicit “Saved” confirmation.
-- Idempotent `clientUploadId`.
-- AI never blocks persistence of the raw note.
-- Retry AI and retry upload are first-class UI affordances.
-
-### Near-term offline-first (designed for, not fully built)
+Field capture is **offline-first**: a note is saved on the phone the moment
+the worker taps Submit, and only removed from the phone once the server has
+accepted it. Dead zones, reloads, closed tabs and expired sessions can delay a
+note but cannot lose it.
 
 ```
-┌──────────────┐     online?      ┌─────────────────┐
-│ Capture UI   │ ── no ─────────► │ IndexedDB queue │
-│              │                  │ drafts + blobs  │
-│              │ ── yes ────────► │ create mutation │
-└──────────────┘                  └────────┬────────┘
-                                           │ reconnect
-                                           ▼
-                                    flush queue with
-                                    same clientUploadId
+Record ─► draft (IndexedDB `drafts`, autosaved on stop/edit; restored on reload)
+   │
+Submit ─► queue item (IndexedDB `queue`: transcript + audio/photo blobs)
+   │
+   ▼
+Queue runner ── triggers: page load (forced), `online` event (forced),
+   │            tab visible again, 20s timer, "Send now"
+   ├─ upload audio/photos ──► storage ids saved on the item (no re-upload on retry)
+   ├─ voiceNotes.createFromField(clientUploadId)   ← idempotent server-side
+   └─ success → delete item from phone
 ```
 
-Architecture requirements for that phase:
+| Code | Role |
+| --- | --- |
+| `lib/offline/queue.ts` | Pure send logic: upload → create, error classification, backoff |
+| `lib/offline/runner.ts` | Persistence + scheduling; single-flight; Web Locks so one tab sends |
+| `lib/offline/idb.ts` | IndexedDB wrapper (`queue`, `drafts` stores; blobs stored natively) |
+| `lib/offline/drafts.ts` | Unsubmitted capture autosave/restore |
+| `lib/offline/session.ts` | Field session on device: active member + per-member tokens |
+| `components/entry/field-queue-*.tsx` | React provider + status panel |
 
-- Treat `clientUploadId` as the idempotency key (already in schema).
-- Keep draft state machine: `local_only → uploading → synced | error`.
-- Never assume background tabs stay alive on iOS; show queue badge on open.
+**Failure handling** (`classifyError`):
+
+| Server/network result | Item becomes | What the worker sees |
+| --- | --- | --- |
+| Network error / timeout / unknown | `pending`, backoff 5s → 5min | "No signal — will send automatically" |
+| Session expired / member inactive | `needs_pin` | "Waiting for Luis to enter their PIN" (sends right after PIN) |
+| An uploaded blob vanished | `pending`, storage ids cleared | Re-uploads on next try |
+| Validation that can never pass (too large, too many photos) | `failed`, kept | Error + Discard (with confirm) |
+
+**Sessions on the device:** the 12h field token is kept in `localStorage` so a
+reload mid-shift doesn't ask for the PIN again. "Switch user" stops auto-resume
+but keeps that member's token so their queued notes can still send; the server
+re-checks the member is active on every call, so deactivation still cuts off
+access immediately.
+
+**Limits (by design for now):**
+- Sending happens while the entry page is open (or the next time it's
+  opened). No Background Sync: iOS doesn't support it, and the Convex client
+  doesn't run in a service worker.
+- If IndexedDB is unavailable (some private-browsing modes), notes are kept in
+  memory and the panel warns the worker to keep the page open.
+- `navigator.storage.persist()` is requested on first submit to reduce the
+  chance of the browser evicting queued notes under storage pressure.
 
 ---
 

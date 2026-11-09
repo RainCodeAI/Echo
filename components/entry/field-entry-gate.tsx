@@ -19,6 +19,16 @@ import {
   FieldRecorder,
   type VerifiedFieldMember,
 } from "@/components/entry/field-recorder";
+import {
+  FieldQueueProvider,
+  useFieldQueue,
+} from "@/components/entry/field-queue-provider";
+import { FieldQueueStatus } from "@/components/entry/field-queue-status";
+import {
+  clearActiveSession,
+  loadActiveSession,
+  saveSession,
+} from "@/lib/offline/session";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 60_000;
@@ -28,10 +38,31 @@ type FieldEntryGateProps = {
   companyName: string;
 };
 
-export function FieldEntryGate({ companyId, companyName }: FieldEntryGateProps) {
-  const verifyPin = useMutation(api.teamMembers.verifyPin);
+export function FieldEntryGate(props: FieldEntryGateProps) {
+  return (
+    <FieldQueueProvider companyId={props.companyId}>
+      <FieldEntryGateInner {...props} />
+    </FieldQueueProvider>
+  );
+}
 
-  const [member, setMember] = useState<VerifiedFieldMember | null>(null);
+function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
+  const verifyPin = useMutation(api.teamMembers.verifyPin);
+  const { runner } = useFieldQueue();
+
+  // Resume the worker who was recording before a reload (12h shift session).
+  // Safe as a lazy initializer: this component only renders client-side,
+  // after the company query resolves.
+  const [member, setMember] = useState<VerifiedFieldMember | null>(() => {
+    const stored = loadActiveSession(companyId);
+    return stored
+      ? {
+          id: stored.id as Id<"teamMembers">,
+          name: stored.name,
+          verificationToken: stored.verificationToken,
+        }
+      : null;
+  });
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinPending, setPinPending] = useState(false);
@@ -90,11 +121,15 @@ export function FieldEntryGate({ companyId, companyName }: FieldEntryGateProps) 
         return;
       }
 
-      setMember({
+      const verified = {
         id: result.member.id,
         name: result.member.name,
         verificationToken: result.verificationToken,
-      });
+      };
+      saveSession(companyId, verified);
+      setMember(verified);
+      // This member's notes that were waiting for a PIN can go now.
+      void runner.run({ force: true });
       setPin("");
       setFailedAttempts(0);
       setLockedUntil(null);
@@ -122,6 +157,7 @@ export function FieldEntryGate({ companyId, companyName }: FieldEntryGateProps) 
             companyName={companyName}
             member={member}
             onSwitchUser={() => {
+              clearActiveSession(companyId);
               setMember(null);
               setPin("");
               setPinError(null);
@@ -141,6 +177,7 @@ export function FieldEntryGate({ companyId, companyName }: FieldEntryGateProps) 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <FieldQueueStatus />
         {isLocked ? (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-center text-sm text-amber-900">
             Locked for {remainingSeconds}s after failed attempts.
