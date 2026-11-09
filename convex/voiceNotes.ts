@@ -11,6 +11,7 @@ import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
 import { requireFieldSession } from "./lib/fieldSession";
 import { takeUploadSlot } from "./lib/uploadQuota";
+import { WORKER_FLAG_FALLBACK_MS, alertReason } from "./lib/alerts";
 import {
   markEdited,
   mergeAiStructure,
@@ -241,6 +242,15 @@ export const createFromField = mutation({
     await ctx.scheduler.runAfter(0, internal.ai.processNoteInternal, {
       noteId,
     });
+    // Crew flagged it urgent: alert the owner when AI finishes, or after
+    // WORKER_FLAG_FALLBACK_MS if AI is slow (first trigger wins).
+    if (args.workerFlaggedUrgent) {
+      await ctx.scheduler.runAfter(
+        WORKER_FLAG_FALLBACK_MS,
+        internal.alerts.sendUrgentAlert,
+        { noteId, trigger: "fallback" },
+      );
+    }
 
     return noteId;
   },
@@ -950,6 +960,16 @@ export const applyAiStructure = internalMutation({
       aiErrorMessage: undefined,
       updatedAt: now,
     });
+
+    // Urgent (crew flag or AI rating)? Alert the owner now — no-op if the
+    // note already alerted or alerts are off.
+    const updated = await ctx.db.get(args.noteId);
+    if (updated && !updated.urgentAlertAt && alertReason(updated)) {
+      await ctx.scheduler.runAfter(0, internal.alerts.sendUrgentAlert, {
+        noteId: args.noteId,
+        trigger: "ai_done",
+      });
+    }
   },
 });
 
@@ -966,5 +986,12 @@ export const applyAiFailure = internalMutation({
       aiErrorMessage: error.slice(0, 500),
       updatedAt: Date.now(),
     });
+    // A worker-flagged note still alerts, with the raw transcript.
+    if (note.workerFlaggedUrgent && !note.urgentAlertAt) {
+      await ctx.scheduler.runAfter(0, internal.alerts.sendUrgentAlert, {
+        noteId,
+        trigger: "ai_failed",
+      });
+    }
   },
 });
