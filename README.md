@@ -294,6 +294,11 @@ Open <http://localhost:3000>, sign up, and land on a freshly provisioned workspa
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` (run `convex dev` first) |
+| `npm run typecheck:convex` | Typecheck Convex functions |
+| `npm test` | Vitest unit tests (incl. OpenAI calls against a mock server) |
+| `npm run ci` | Everything CI runs: typechecks, lint, tests, build |
+| `node scripts/eval-transcription.mjs <dir>` | Compare transcription models on real recordings |
+| `npx convex run ops:checkConfig --prod` | Verify production Convex secrets (no values shown) |
 
 ---
 
@@ -357,8 +362,12 @@ Field path priority: **record → submit → confirm saved**. Everything else
 | Phase | Status |
 | ----- | ------ |
 | 1 — Architecture & documentation | Done |
-| 2 — App scaffold (Next.js, Clerk, Convex providers, shell, teamMembers) | In progress |
-| 3 — Capture + AI + dashboard MVP | Not started |
+| 2 — App scaffold (Next.js, Clerk, Convex providers, shell, teamMembers) | Done |
+| 3 — Capture + AI + dashboard MVP | Done (pilot-ready after Phase 0 ops work) |
 
-Phase 2 delivers scaffold + providers + owner shell + public entry route.
-Full recorder UI and AI enrichment are Phase 3.
+See [docs/REVIEW_AND_ROADMAP.md](docs/REVIEW_AND_ROADMAP.md) for the latest
+code review, bug-sweep results, and the forward roadmap.
+
+- **Deploying to production:** [docs/DEPLOY.md](docs/DEPLOY.md)
+- **Running a customer pilot:** [docs/PILOT.md](docs/PILOT.md)
+- **Run every CI check locally:** `npm run ci`

@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireCurrentUser } from "./lib/tenant";
+import { requireCurrentUser, requireOwner } from "./lib/tenant";
 import { serviceTypeValidator } from "./schema";
 
 /**
@@ -29,7 +29,7 @@ export const current = query({
   },
 });
 
-/** Update company profile fields (owner dashboard settings). */
+/** Update company profile fields (owner only). */
 export const update = mutation({
   args: {
     name: v.optional(v.string()),
@@ -41,7 +41,8 @@ export const update = mutation({
     notificationsEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const user = await requireCurrentUser(ctx);
+    // Owner-only per the role matrix in ARCHITECTURE.md (members: "Limited").
+    const user = await requireOwner(ctx);
     const company = await ctx.db.get(user.companyId);
     if (!company) throw new Error("Not found");
 

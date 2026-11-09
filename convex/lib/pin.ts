@@ -33,3 +33,19 @@ export function safeEqualHex(a: string, b: string): boolean {
   }
   return mismatch === 0;
 }
+
+/**
+ * Escalating server lockout for repeated PIN failures on one company entry.
+ * A flat 60s lock allowed ~14k guesses/day — the whole 4-digit space. Each
+ * consecutive lockout (no successful PIN in between) waits longer, capped at
+ * 15 minutes so a malicious lockout can't block a crew for hours.
+ */
+const LOCKOUT_STEPS_MS = [60_000, 5 * 60_000, 15 * 60_000] as const;
+
+export function lockoutDurationMs(consecutiveLockouts: number): number {
+  const index = Math.min(
+    Math.max(0, consecutiveLockouts - 1),
+    LOCKOUT_STEPS_MS.length - 1,
+  );
+  return LOCKOUT_STEPS_MS[index];
+}

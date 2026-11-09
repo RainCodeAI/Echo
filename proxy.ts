@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 /**
- * Clerk middleware.
+ * Clerk auth proxy (Next 16 renamed `middleware.ts` → `proxy.ts`).
  * - /dashboard/* requires owner/office authentication.
  * - /entry/* stays public (field workers use PIN, not Clerk).
  * - Marketing + auth routes stay public.
