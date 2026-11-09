@@ -146,8 +146,9 @@ _The #1 trust killer in field software is losing someone's work._
       the note; Settings test button. _Needs Resend/Twilio keys to go live._
 - [x] **Daily digest** (opt-in, at the owner's local hour; quiet days skipped; uses the alert email setup): "7 notes from 3 crews, 2 need you, 14 materials
       requested."
-- [ ] Action items become checkable tasks with an assignee; open items roll
-      up on the dashboard.
+- [x] Action items become checkable tasks with an assignee; open items roll
+      up on the dashboard (Tasks page; AI hints auto-assign on an unambiguous
+      name match). _Follow-up: show crew their assigned items on the field page._
 - [ ] One-click **apply suggested job updates**.
 - [ ] **Materials → order list**: aggregate across notes per job; export or
       share with the supply house.

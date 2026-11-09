@@ -7,6 +7,7 @@ import { Pencil } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { NoteAiEditor } from "@/components/notes/note-ai-editor";
+import { AssigneeSelect } from "@/components/tasks/assignee-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,11 +98,14 @@ export function NoteAiPanel({
       {
         ...current,
         actionItems: current.actionItems.map((item, i) =>
-          i === index ? { ...item, completed: completed || undefined } : item,
+          i === index
+            ? { ...item, completed: completed || undefined, completedAt: completed ? Date.now() : undefined }
+            : item,
         ),
       },
     );
   });
+  const setAssignee = useMutation(api.voiceNotes.setActionItemAssignee);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const edited = new Set(ownerEditedFields ?? []);
   const hasStructure =
@@ -233,13 +237,18 @@ export function NoteAiPanel({
                     checked={!!item.completed}
                     onChange={(e) => {
                       setToggleError(null);
-                      setCompleted({ noteId, index: i, completed: e.target.checked }).catch(
+                      setCompleted({
+                        noteId,
+                        index: i,
+                        completed: e.target.checked,
+                        expectedTitle: item.title,
+                      }).catch(
                         (err: unknown) =>
                           setToggleError(err instanceof Error ? err.message : "Could not update."),
                       );
                     }}
                   />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                   <span className={`font-medium ${item.completed ? "text-muted-foreground line-through" : ""}`}>
                     {item.title}
                   </span>
@@ -248,12 +257,22 @@ export function NoteAiPanel({
                       ({item.priority})
                     </span>
                   ) : null}
-                  {item.assigneeHint || item.dueHint ? (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {[item.assigneeHint, item.dueHint].filter(Boolean).join(" · ")}
-                    </p>
+                  {item.dueHint ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{item.dueHint}</p>
                   ) : null}
                   </div>
+                  <AssigneeSelect
+                    label={`Assign "${item.title}"`}
+                    value={item.assignee}
+                    hint={item.assigneeHint}
+                    onChange={(next) => {
+                      setToggleError(null);
+                      setAssignee({ noteId, index: i, expectedTitle: item.title, assignee: next }).catch(
+                        (err: unknown) =>
+                          setToggleError(err instanceof Error ? err.message : "Could not update."),
+                      );
+                    }}
+                  />
                 </li>
               ))}
             </ul>
