@@ -294,6 +294,11 @@ Open <http://localhost:3000>, sign up, and land on a freshly provisioned workspa
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` (run `convex dev` first) |
+| `npm run typecheck:convex` | Typecheck Convex functions |
+| `npm test` | Vitest unit tests (incl. OpenAI calls against a mock server) |
+| `npm run ci` | Everything CI runs: typechecks, lint, tests, build |
+| `node scripts/eval-transcription.mjs <dir>` | Compare transcription models on real recordings |
+| `npx convex run ops:checkConfig --prod` | Verify production Convex secrets (no values shown) |
 
 ---
 
@@ -362,3 +367,7 @@ Field path priority: **record → submit → confirm saved**. Everything else
 
 See [docs/REVIEW_AND_ROADMAP.md](docs/REVIEW_AND_ROADMAP.md) for the latest
 code review, bug-sweep results, and the forward roadmap.
+
+- **Deploying to production:** [docs/DEPLOY.md](docs/DEPLOY.md)
+- **Running a customer pilot:** [docs/PILOT.md](docs/PILOT.md)
+- **Run every CI check locally:** `npm run ci`

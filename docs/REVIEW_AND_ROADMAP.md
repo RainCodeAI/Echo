@@ -70,9 +70,7 @@ All fixes are on branch `claude/eloquent-mccarthy-joos0m`.
 New tests: TTL regression, lockout escalation, prompt device-notes (29 → 34).
 
 ### Known issues not fixed (tracked in roadmap)
-- **`openai` v4 SDK** carries a high-severity transitive `zod` advisory. The fix
-  is a major-version bump (v7) that should be tested against the live API.
-  → Phase 0.
+- ~~`openai` v4 SDK / `zod` advisory~~ — fixed in Phase 0 (SDK v7, zod 4).
 - **AI retry overwrites an owner's manual urgency** (`applyAiStructure` writes
   urgency unconditionally). Needs an "owner-set" marker. → Phase 1.
 - **Orphaned storage**: abandoned uploads, oversized/rejected uploads, and
@@ -97,16 +95,31 @@ for two weeks.** Every phase ends with something you can put in front of a
 pilot customer.
 
 ### Phase 0 — Ship to a pilot (≈1 week)
-- [ ] Production Convex deployment; set `ENTRY_TOKEN_SECRET`,
-      `OPENAI_API_KEY`, `CLERK_JWT_ISSUER_DOMAIN`. Confirm the Clerk `convex`
-      JWT template includes `email` + `email_verified`.
-- [ ] Vercel deploy, custom domain (e.g. `echo.raincode.ai`).
-- [ ] GitHub Actions CI: `npm ci` → typecheck → lint → test → build.
-- [ ] Sentry (or similar) on Next.js + Convex action failures.
-- [ ] Upgrade `openai` SDK to current major; evaluate `gpt-4o-transcribe`
-      (or successor) vs `whisper-1` on 20 real job-site recordings.
-- [ ] **Recruit 2–3 pilot companies** from existing SiteAssist/Relay/Quill
-      users. Ideally one bilingual crew.
+_Code side done; account setup follows [DEPLOY.md](DEPLOY.md)._
+- [x] GitHub Actions CI (`.github/workflows/ci.yml`): `npm ci` → typecheck
+      (app + Convex) → lint → test → build → critical-vuln audit gate.
+- [x] Sentry for Next.js (client + server), inert until a DSN is set; privacy
+      defaults send no bodies/cookies/user info.
+- [x] `openai` SDK v4 → v7 (Convex Node runtime pinned to 22 in
+      `convex.json`). OpenAI calls extracted to `convex/lib/openaiCalls.ts`
+      and verified against a mock OpenAI server. Production dependency audit:
+      **0 vulnerabilities**.
+- [x] Transcription model configurable (`OPENAI_TRANSCRIBE_MODEL`) +
+      `scripts/eval-transcription.mjs` to compare models (with WER) on real
+      recordings.
+- [x] `ops:checkConfig` internal query: verifies production secrets without
+      exposing values.
+- [x] Deployment runbook ([DEPLOY.md](DEPLOY.md)) and pilot playbook
+      ([PILOT.md](PILOT.md)).
+- [ ] **You:** Clerk production instance + `convex` JWT template (with
+      `email`, `email_verified`).
+- [ ] **You:** Convex production env vars → `npx convex run ops:checkConfig --prod`.
+- [ ] **You:** Vercel project + `CONVEX_DEPLOY_KEY` + domain
+      (e.g. `echo.raincode.ai`); optional Sentry DSN.
+- [ ] **You:** branch protection on `main` requiring CI.
+- [ ] Run the smoke test in DEPLOY.md on a real iPhone and Android.
+- [ ] Record ~20 real job-site memos and run the transcription eval.
+- [ ] **Recruit 2–3 pilot companies** ([PILOT.md](PILOT.md)).
 
 ### Phase 1 — "Never lose a memo" (≈2–3 weeks)
 _The #1 trust killer in field software is losing someone's work._
