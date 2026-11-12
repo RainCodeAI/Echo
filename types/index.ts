@@ -101,6 +101,8 @@ export interface ActionItem {
  * AI-proposed patch for a linked job. Applied only after owner confirmation.
  */
 export interface SuggestedJobUpdate {
+  appliedAt?: number;
+  dismissedAt?: number;
   field: string;
   value: string;
   rationale?: string;

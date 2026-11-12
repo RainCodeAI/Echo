@@ -130,6 +130,14 @@ export const suggestedJobUpdateValidator = v.object({
   field: v.string(),
   value: v.string(),
   rationale: v.optional(v.string()),
+  /** Set when an office user applied it to the linked job (see convex/jobUpdates.ts). */
+  appliedAt: v.optional(v.number()),
+  appliedBy: v.optional(v.id("users")),
+  appliedJobId: v.optional(v.id("jobs")),
+  /** JSON of the job field before / after applying — undo needs both. */
+  previous: v.optional(v.string()),
+  applied: v.optional(v.string()),
+  dismissedAt: v.optional(v.number()),
 });
 
 // --- Schema ------------------------------------------------------------------

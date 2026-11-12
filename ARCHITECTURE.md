@@ -573,6 +573,35 @@ edit and AI-merge rules from §6.5 apply unchanged). Each item can carry an
 - If item volume outgrows the 500-note scan, move action items to their own
   table. The `{noteId, index}` addressing is the only thing the UI depends on.
 
+## 11d. Applying suggested job updates
+
+The AI's `suggestedJobUpdates` (`{ field, value, rationale }`) can be applied
+to the note's linked job in one click from the note page
+(`components/notes/suggested-job-updates.tsx`, `convex/jobUpdates.ts`, pure
+logic in `convex/lib/jobUpdates.ts`).
+
+- **Applicable fields:** `status`, `scheduledFor`, `address`, `notes`. The
+  prompt asks for exactly these (`field` is an enum in the JSON schema), and
+  synonyms are still normalised. Anything else is shown read-only with the
+  reason it can't be applied.
+- **Dates are confirmed, never applied blind.** The AI proposes a local
+  `YYYY-MM-DD[THH:mm]` (8am by default), resolved against the "Recorded on"
+  date now included in the prompt. The owner confirms it in a date/time box,
+  the browser converts it in the owner's timezone, and the server accepts
+  only instants within 30 days back and 366 days ahead.
+- **Notes append, never overwrite:** `Field note YYYY-MM-DD: <text>`, capped
+  at 4,000 characters.
+- **Undo:** each apply stores the field's `previous` and `applied` values
+  (JSON) plus `appliedJobId`. Undo restores the previous value, but only
+  while the job still holds the applied value, so it never clobbers a later
+  edit. It targets the job it was applied to, even if the note is re-linked.
+- **Guards:** tenant check, an `expectedField`/`expectedValue` check (a list
+  that changed since it was shown is refused), "Link this note to a job
+  first", and no double-apply. Applied suggestions can't be dismissed until
+  undone.
+- **Dismiss / restore** marks `dismissedAt`. AI re-runs keep decided
+  (applied or dismissed) suggestions and drop new duplicates of them.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):
