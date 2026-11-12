@@ -41,7 +41,7 @@ export const STRUCTURE_NOTE_SYSTEM_PROMPT = renderSystemPrompt({
     "Materials: name required; quantity/unit/notes when mentioned.",
     "Action items: concrete next steps for crew or office.",
     "Urgency: low | medium | high | emergency. Respect workerFlaggedUrgent when true (at least high).",
-    "suggestedJobUpdates: optional proposals only (field name + value + short rationale).",
+    "suggestedJobUpdates: optional proposals for the linked job, only when the memo clearly implies them. field must be one of: status (value: scheduled | in_progress | completed | cancelled), scheduledFor (value: YYYY-MM-DD or YYYY-MM-DDTHH:mm in local time; resolve relative dates like 'next Tuesday' from the recording date; omit if no specific day is stated), address (the corrected site address), notes (one short line worth keeping on the job). Give a short rationale quoting the memo.",
     "tags: short snake_or_lowercase labels like change_order, safety, materials_needed.",
     "confidence: 0 to 1 self-score of how complete/clear the memo was.",
     "title: short owner-facing title (max ~80 chars).",
@@ -97,7 +97,7 @@ export const STRUCTURE_NOTE_JSON_SCHEMA = {
           type: "object",
           additionalProperties: false,
           properties: {
-            field: { type: "string" },
+            field: { type: "string", enum: ["status", "scheduledFor", "address", "notes"] },
             value: { type: "string" },
             rationale: { type: "string" },
           },
@@ -135,11 +135,16 @@ export function buildStructureUserPrompt(input: {
   deviceNotes?: string;
   /** Job the note is linked to, if any. */
   job?: { title: string; address?: string | null } | null;
+  /** When the memo was recorded (ms), so relative dates can be resolved. */
+  recordedAt?: number;
 }): string {
   return [
     `Company: ${input.companyName}`,
     input.primaryTrade ? `Primary trade: ${input.primaryTrade}` : null,
     input.crewName ? `Recorded by: ${input.crewName}` : null,
+    input.recordedAt
+      ? `Recorded on: ${new Date(input.recordedAt).toISOString().slice(0, 10)} (${new Date(input.recordedAt).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })})`
+      : null,
     input.job
       ? `Linked job: ${input.job.title}${input.job.address ? ` (site: ${input.job.address})` : ""}`
       : null,

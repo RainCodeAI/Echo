@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { NoteAiEditor } from "@/components/notes/note-ai-editor";
 import { AssigneeSelect } from "@/components/tasks/assignee-select";
+import { SuggestedJobUpdates } from "@/components/notes/suggested-job-updates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,14 @@ import type {
 
 type NoteAiPanelProps = {
   noteId: Id<"voiceNotes">;
+  /** The note's linked job (for applying suggested updates). */
+  job?: {
+    id: string;
+    title: string;
+    status: "scheduled" | "in_progress" | "completed" | "cancelled";
+    scheduledFor: number | null;
+    address: string | null;
+  } | null;
   /** Fields the owner corrected (kept when AI re-runs). */
   ownerEditedFields?: string[];
   aiStatus: VoiceNoteAiStatus;
@@ -70,6 +79,7 @@ function FieldLabel({
 
 export function NoteAiPanel({
   noteId,
+  job,
   ownerEditedFields,
   aiStatus,
   aiTitle,
@@ -290,22 +300,7 @@ export function NoteAiPanel({
         ) : null}
 
         {suggestedJobUpdates && suggestedJobUpdates.length > 0 ? (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Suggested job updates
-            </p>
-            <ul className="space-y-1.5 text-sm">
-              {suggestedJobUpdates.map((s, i) => (
-                <li key={`${s.field}-${i}`} className="rounded-md border px-3 py-2">
-                  <span className="font-medium">{s.field}</span>
-                  <span className="text-muted-foreground"> → {s.value}</span>
-                  {s.rationale ? (
-                    <p className="mt-0.5 text-xs text-muted-foreground">{s.rationale}</p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <SuggestedJobUpdates noteId={noteId} suggestions={suggestedJobUpdates} job={job ?? null} />
         ) : null}
 
         {tags && tags.length > 0 ? (
