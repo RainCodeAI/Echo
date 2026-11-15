@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "convex/react";
-import { Briefcase } from "lucide-react";
+import { Briefcase, Package } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,15 @@ export default function JobsPage() {
             Scheduled and active work that field notes can attach to.
           </p>
         </div>
-        <JobDialog mode="create" />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/materials"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium hover:bg-accent"
+          >
+            <Package className="h-4 w-4" /> Materials
+          </Link>
+          <JobDialog mode="create" />
+        </div>
       </div>
 
       <Card>
@@ -95,6 +104,12 @@ export default function JobsPage() {
                           {job.notes}
                         </p>
                       ) : null}
+                      <Link
+                        href={`/dashboard/materials?job=${job._id}`}
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        <Package className="h-3 w-3" /> Order list
+                      </Link>
                     </div>
                     <JobDialog
                       mode="edit"

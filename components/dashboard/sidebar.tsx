@@ -7,6 +7,7 @@ import {
   Hammer,
   LayoutDashboard,
   ListChecks,
+  Package,
   Settings,
   Users,
   UsersRound,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/tasks", label: "Action items", icon: ListChecks },
   { href: "/dashboard/leads", label: "Leads", icon: Users },
   { href: "/dashboard/jobs", label: "Jobs", icon: Hammer },
+  { href: "/dashboard/materials", label: "Materials", icon: Package },
   { href: "/dashboard/team", label: "Crew", icon: UsersRound },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

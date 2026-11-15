@@ -152,8 +152,9 @@ _The #1 trust killer in field software is losing someone's work._
 - [x] One-click **apply suggested job updates** (status, reschedule,
       address, append to job notes): dates confirmed before applying,
       undo that never overwrites a later edit, and dismiss/restore.
-- [ ] **Materials → order list**: aggregate across notes per job; export or
-      share with the supply house.
+- [x] **Materials → order list**: merged across a job's notes (quantities
+      summed, units normalized); copy, share, email or CSV for the supply
+      house; mark lines ordered (later notes asking for more reappear).
 - [ ] Customer-update draft: "send the homeowner a summary" (text/email,
       owner approves).
 
