@@ -3,6 +3,8 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import OpenAI from "openai";
 import {
+  CUSTOMER_UPDATE_MAX_TOKENS,
+  requestCustomerUpdate,
   STRUCTURE_MAX_TOKENS,
   mimeToExtension,
   requestStructuredNote,
@@ -180,5 +182,38 @@ describe("mimeToExtension", () => {
     expect(mimeToExtension("audio/mp4")).toBe("mp4");
     expect(mimeToExtension("audio/ogg;codecs=opus")).toBe("ogg");
     expect(mimeToExtension(undefined)).toBe("webm");
+  });
+});
+
+describe("requestCustomerUpdate", () => {
+  const ctx = {
+    companyName: "Acme Roofing",
+    customerName: "Maria Ramirez",
+    jobTitle: "Ramirez reroof",
+    address: "12 Oak St",
+    notes: [{ noteId: "n1", recordedAt: Date.UTC(2026, 10, 14, 15), summary: "Tear-off done on the north slope." }],
+  };
+
+  it("sends a strict json_schema request with the job context", async () => {
+    nextResponse = completion(JSON.stringify({ text: "Hi Maria", emailSubject: "Update", emailBody: "Hi Maria," }));
+    const raw = await requestCustomerUpdate(client, ctx);
+    expect(raw).toEqual({ text: "Hi Maria", emailSubject: "Update", emailBody: "Hi Maria," });
+    const body = JSON.parse(captured[0].body.toString("utf8"));
+    expect(captured[0].path).toBe("/v1/chat/completions");
+    expect(body.max_completion_tokens).toBe(CUSTOMER_UPDATE_MAX_TOKENS);
+    expect(body.response_format.json_schema.name).toBe("customer_update");
+    expect(body.response_format.json_schema.strict).toBe(true);
+    expect(body.messages[0].content).toContain("Leave out anything internal");
+    expect(body.messages[1].content).toContain("Customer: Maria");
+    expect(body.messages[1].content).toContain("- Sat, Nov 14: Tear-off done on the north slope.");
+  });
+
+  it("explains cut-off, refused and malformed responses", async () => {
+    nextResponse = completion("{}", { finish_reason: "length" });
+    await expect(requestCustomerUpdate(client, ctx)).rejects.toThrow(/cut off/);
+    nextResponse = completion(null, { refusal: "no" });
+    await expect(requestCustomerUpdate(client, ctx)).rejects.toThrow(/declined/);
+    nextResponse = completion("not json");
+    await expect(requestCustomerUpdate(client, ctx)).rejects.toThrow(/malformed/);
   });
 });

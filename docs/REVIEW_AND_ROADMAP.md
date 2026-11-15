@@ -155,8 +155,10 @@ _The #1 trust killer in field software is losing someone's work._
 - [x] **Materials → order list**: merged across a job's notes (quantities
       summed, units normalized); copy, share, email or CSV for the supply
       house; mark lines ordered (later notes asking for more reappear).
-- [ ] Customer-update draft: "send the homeowner a summary" (text/email,
-      owner approves).
+- [x] Customer-update draft: "send the homeowner a summary". The AI drafts a
+      text and an email from the job's notes since the last update, leaving
+      out internal details. The owner edits it and sends it from their own
+      phone or email; Echo only records that it was sent.
 
 ### Phase 3 — "Sellable" (≈3–4 weeks)
 - [ ] Stripe billing. Suggested starting point: **flat per company, unlimited

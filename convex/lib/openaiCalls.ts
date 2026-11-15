@@ -5,9 +5,15 @@ import {
   buildStructureUserPrompt,
   type StructuredNoteModel,
 } from "./prompts";
+import {
+  CUSTOMER_UPDATE_JSON_SCHEMA,
+  CUSTOMER_UPDATE_SYSTEM_PROMPT,
+  buildCustomerUpdatePrompt,
+  type DraftContext,
+} from "./customerUpdate";
 
 /**
- * The two OpenAI calls Echo makes, isolated from the Convex action so they can
+ * The OpenAI calls Echo makes, isolated from the Convex action so they can
  * be tested against a mock OpenAI server (see tests/openai-calls.test.ts).
  *
  * Type-only import of `openai`: this module is bundled by Convex, and only the
@@ -93,5 +99,39 @@ export async function requestStructuredNote(
     return JSON.parse(content) as StructuredNoteModel;
   } catch {
     throw new Error("AI returned malformed JSON. Retry the note.");
+  }
+}
+
+/** Output budget for a customer-update draft (SMS + short email). */
+export const CUSTOMER_UPDATE_MAX_TOKENS = 900;
+
+/**
+ * Draft a homeowner-facing update from a job's notes. Returns the model's raw
+ * JSON; validate it with sanitizeDraft().
+ */
+export async function requestCustomerUpdate(
+  client: OpenAI,
+  input: DraftContext & { model?: string },
+): Promise<unknown> {
+  const { model, ...context } = input;
+  const completion = await client.chat.completions.create({
+    model: model || DEFAULT_STRUCTURE_MODEL,
+    max_completion_tokens: CUSTOMER_UPDATE_MAX_TOKENS,
+    temperature: 0.4,
+    response_format: { type: "json_schema", json_schema: CUSTOMER_UPDATE_JSON_SCHEMA },
+    messages: [
+      { role: "system", content: CUSTOMER_UPDATE_SYSTEM_PROMPT },
+      { role: "user", content: buildCustomerUpdatePrompt(context) },
+    ],
+  });
+  const choice = completion.choices[0];
+  if (choice?.finish_reason === "length") throw new Error("The draft was cut off. Try again.");
+  if (choice?.message?.refusal) throw new Error(`The AI declined to write this update: ${choice.message.refusal}`);
+  const content = choice?.message?.content;
+  if (!content) throw new Error("Empty model response.");
+  try {
+    return JSON.parse(content) as unknown;
+  } catch {
+    throw new Error("The AI returned malformed JSON. Try again.");
   }
 }

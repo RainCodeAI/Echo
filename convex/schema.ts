@@ -455,6 +455,39 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_company_and_job", ["companyId", "jobId"]),
 
+  /**
+   * AI-drafted progress update for a job's customer (see
+   * convex/lib/customerUpdate.ts). The owner edits and sends it from their
+   * own phone/email; Echo only records that it was sent.
+   */
+  customerUpdates: defineTable({
+    companyId: v.id("companies"),
+    jobId: v.id("jobs"),
+    /** The note the owner started from. */
+    noteId: v.id("voiceNotes"),
+    /** Every note the draft was written from. */
+    sourceNoteIds: v.array(v.id("voiceNotes")),
+    status: v.union(
+      v.literal("generating"),
+      v.literal("draft"),
+      v.literal("failed"),
+      v.literal("sent"),
+      v.literal("discarded"),
+    ),
+    text: v.optional(v.string()),
+    emailSubject: v.optional(v.string()),
+    emailBody: v.optional(v.string()),
+    error: v.optional(v.string()),
+    sentVia: v.optional(v.union(v.literal("text"), v.literal("email"), v.literal("other"))),
+    sentAt: v.optional(v.number()),
+    sentBy: v.optional(v.id("users")),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_company_and_job", ["companyId", "jobId"])
+    .index("by_company_and_created", ["companyId", "createdAt"]),
+
   alerts: defineTable({
     companyId: v.id("companies"),
     noteId: v.optional(v.id("voiceNotes")),

@@ -631,6 +631,41 @@ job's notes into one list for the supply house.
 - Known limit: if an AI re-run changes the quantity on a note line that was
   already ordered, that line stays covered.
 
+## 11f. Customer-update drafts
+
+The note page's **Customer update** card (`components/notes/customer-update.tsx`,
+`convex/customerUpdates.ts`, the AI action in `convex/customerUpdatesAi.ts`, pure
+logic in `convex/lib/customerUpdate.ts`) drafts a short progress update for the
+job's customer, who comes from the job's lead (or the note's lead).
+
+- **The owner sends it; Echo never does.** "Send from my phone" opens an
+  `sms:` link and "Send from my email" opens a `mailto:` link with the
+  (edited) draft filled in, and records the update as sent. Undo is there in
+  case it wasn't. There's no customer messaging from Echo's own numbers, so
+  no A2P/consent setup is needed for this.
+- **What the AI sees:** the job's notes since the last update that was sent
+  (or the past week): up to 8, oldest first, always including the note the
+  owner started from. It gets their AI summary (or the transcript if there's
+  no summary) and timing notes, plus the company name, the customer's first
+  name, the job title and the address. It does **not** see the owner's
+  private note, the customer's phone or email, or archived notes. The prompt
+  also tells it to leave out prices, crew names and blame, internal matters
+  and safety incidents, and to promise nothing the notes don't support.
+- **Output:** a text message plus an email subject and body (JSON schema,
+  strict). `sanitizeDraft` caps lengths and replaces leftover placeholders
+  such as "[Your Name]" with the company name. It also turns curly quotes and
+  dashes into plain ones in the text message: one "–" switches an SMS to
+  Unicode and can triple the number of texts.
+- **Lifecycle:** generating → draft → sent (or failed / discarded).
+  - One open draft per job: starting a new one discards the old one, and a
+    late AI result for a replaced draft is dropped.
+  - A run that is still "generating" after 3 minutes shows as failed and can
+    be retried.
+  - 20 drafts per company per hour.
+  - Uses the same `OPENAI_API_KEY`, `OPENAI_MODEL` and `OPENAI_KILL_SWITCH`
+    settings as note structuring. With AI off, the draft fails with a clear
+    reason and nothing is called.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):
