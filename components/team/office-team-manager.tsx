@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OfficeMemberActions } from "@/components/team/office-member-actions";
 
 /**
  * Office (Clerk) team: current members + email invites. An invited person
@@ -92,9 +93,10 @@ export function OfficeTeamManager() {
             {members.map((m) => (
               <li
                 key={m.id}
-                className="flex items-center justify-between gap-3 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 py-3"
+                data-testid={`office-user-${m.name}`}
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
                     {m.name}
                     {m.isSelf ? (
@@ -108,6 +110,7 @@ export function OfficeTeamManager() {
                 <Badge variant={m.role === "owner" ? "default" : "secondary"}>
                   {m.role === "owner" ? "Owner" : "Member"}
                 </Badge>
+                <OfficeMemberActions member={m} viewerIsOwner={isOwner} />
               </li>
             ))}
           </ul>

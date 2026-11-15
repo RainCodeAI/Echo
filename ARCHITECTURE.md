@@ -748,6 +748,31 @@ functions are in `convex/aiUsage.ts`. Ops commands are in `convex/ops.ts`.
   models, update `CHAT_PRICES` / `TRANSCRIBE_PRICES`. The real OpenAI bill is
   the source of truth.
 
+## 11i. Office user management
+
+Rules are in `convex/lib/officeUsers.ts`, mutations in `convex/officeUsers.ts`,
+and the UI is `components/team/office-member-actions.tsx` on the Team page.
+
+- A workspace has **one owner**.
+  - The owner can **remove** a member, or **make a member the owner**, which
+    swaps the two roles.
+  - A member can **leave**.
+  - The owner can't remove themselves or leave. They hand over ownership
+    first, or delete the workspace.
+  - Every action checks that both people are in the same company.
+- **Removing ends access** by deleting the `users` row: the Clerk identity
+  no longer maps to the company.
+  - On their next visit, `users.store` treats them as new: a fresh personal
+    workspace, or this one again if they're re-invited.
+  - The Clerk account itself is untouched.
+- **Their open action items become unassigned:** `unassignBatch` pages
+  through the company's notes 200 at a time. Otherwise they'd stay
+  "assigned" to someone who no longer exists and drop out of the Unassigned
+  filter.
+- Records they created (leads, jobs, orders, customer updates) keep their
+  user id. Name lookups already tolerate a missing user, so they show no name.
+- There is no audit log of who removed whom yet (Phase 3 follow-up).
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

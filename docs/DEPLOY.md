@@ -225,6 +225,10 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       minute with the AI summary, and the note page shows "Urgent alert by text…".
 - [ ] **Digest:** tick *Daily digest email* (the timezone fills in), save, then
       *Send digest now*. The email arrives, and its links open the notes.
+- [ ] **Office users:** from Team, make the invited member the owner (you
+      become a member), have them make you owner again, then remove them.
+      They lose access on their next click, and their action items show as
+      unassigned on the Tasks page.
 - [ ] **Terms:** a new owner is asked to accept the Terms and Privacy Policy
       before the dashboard opens. `/privacy` and `/terms` show your company
       name and contact email, not `[placeholders]`.
