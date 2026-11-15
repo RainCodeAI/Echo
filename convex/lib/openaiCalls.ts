@@ -39,6 +39,21 @@ export function mimeToExtension(mime?: string): string {
   return "webm";
 }
 
+/** Tokens one chat call used (reported even when its output is unusable). */
+export type TokenUsage = { inputTokens: number; outputTokens: number };
+type UsageCallback = (usage: TokenUsage) => unknown;
+
+async function reportUsage(
+  completion: { usage?: { prompt_tokens?: number; completion_tokens?: number } | null },
+  onUsage?: UsageCallback,
+) {
+  if (!onUsage) return;
+  await onUsage({
+    inputTokens: completion.usage?.prompt_tokens ?? 0,
+    outputTokens: completion.usage?.completion_tokens ?? 0,
+  });
+}
+
 /**
  * Server-side transcription. No `language` hint: auto-detect so Spanish (and
  * other) memos transcribe correctly instead of being forced through English.
@@ -61,9 +76,9 @@ export async function transcribeAudio(
 /** Ask the model for the structured note JSON. Throws with an owner-readable message. */
 export async function requestStructuredNote(
   client: OpenAI,
-  input: Parameters<typeof buildStructureUserPrompt>[0] & { model?: string },
+  input: Parameters<typeof buildStructureUserPrompt>[0] & { model?: string; onUsage?: UsageCallback },
 ): Promise<StructuredNoteModel> {
-  const { model, ...promptInput } = input;
+  const { model, onUsage, ...promptInput } = input;
   const completion = await client.chat.completions.create({
     model: model || DEFAULT_STRUCTURE_MODEL,
     // `max_completion_tokens` works on both classic and reasoning models;
@@ -79,6 +94,7 @@ export async function requestStructuredNote(
       { role: "user", content: buildStructureUserPrompt(promptInput) },
     ],
   });
+  await reportUsage(completion, onUsage);
 
   const choice = completion.choices[0];
   if (choice?.finish_reason === "length") {
@@ -111,9 +127,9 @@ export const CUSTOMER_UPDATE_MAX_TOKENS = 900;
  */
 export async function requestCustomerUpdate(
   client: OpenAI,
-  input: DraftContext & { model?: string },
+  input: DraftContext & { model?: string; onUsage?: UsageCallback },
 ): Promise<unknown> {
-  const { model, ...context } = input;
+  const { model, onUsage, ...context } = input;
   const completion = await client.chat.completions.create({
     model: model || DEFAULT_STRUCTURE_MODEL,
     max_completion_tokens: CUSTOMER_UPDATE_MAX_TOKENS,
@@ -124,6 +140,7 @@ export async function requestCustomerUpdate(
       { role: "user", content: buildCustomerUpdatePrompt(context) },
     ],
   });
+  await reportUsage(completion, onUsage);
   const choice = completion.choices[0];
   if (choice?.finish_reason === "length") throw new Error("The draft was cut off. Try again.");
   if (choice?.message?.refusal) throw new Error(`The AI declined to write this update: ${choice.message.refusal}`);

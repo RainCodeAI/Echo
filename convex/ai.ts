@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import OpenAI from "openai";
 import { sanitizeStructuredNote, URGENCY_VALUES } from "./lib/prompts";
+import { estimateAudioSeconds } from "./lib/aiUsage";
 import {
   DEFAULT_STRUCTURE_MODEL,
   DEFAULT_TRANSCRIBE_MODEL,
@@ -60,6 +61,20 @@ export const processNoteInternal = internalAction({
     if (!bundle) return;
 
     const { note, crewName, companyName, primaryTrade, job } = bundle;
+
+    // Monthly AI budget: over it, skip AI (the note itself is already saved,
+    // and an urgent note still alerts via applyAiFailure). Not counted as an
+    // attempt, so it can be retried once the budget allows.
+    const budget = await ctx.runQuery(internal.aiUsage.check, { companyId: note.companyId });
+    if (!budget.allowed) {
+      await ctx.runMutation(internal.aiUsage.recordSkipped, { companyId: note.companyId });
+      await ctx.runMutation(internal.voiceNotes.applyAiFailure, {
+        noteId,
+        error: budget.message ?? "Monthly AI limit reached.",
+      });
+      return;
+    }
+
     await ctx.runMutation(internal.voiceNotes.markAiProcessing, { noteId });
 
     const client = getClient();
@@ -101,6 +116,12 @@ export const processNoteInternal = internalAction({
             fileName: `note-${noteId}`,
             mimeType: note.audioMimeType,
             model: TRANSCRIBE_MODEL,
+          });
+          await ctx.runMutation(internal.aiUsage.record, {
+            companyId: note.companyId,
+            kind: "transcribe",
+            model: TRANSCRIBE_MODEL,
+            audioSeconds: estimateAudioSeconds(note.audioDurationMs, blob.size),
           });
           if (whispered) {
             transcript = whispered;
@@ -147,6 +168,13 @@ export const processNoteInternal = internalAction({
         transcript,
         job,
         recordedAt: note.recordedAt,
+        onUsage: (usage) =>
+          ctx.runMutation(internal.aiUsage.record, {
+            companyId: note.companyId,
+            kind: "structure",
+            model: MODEL,
+            ...usage,
+          }),
         deviceNotes:
           transcriptSource === "whisper" && deviceTranscript !== transcript
             ? deviceTranscript

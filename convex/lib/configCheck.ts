@@ -1,3 +1,4 @@
+import { DEFAULT_MONTHLY_BUDGET_USD } from "./aiUsage";
 /**
  * Deployment configuration check (pure, testable). Reports presence/strength
  * of required settings — never their values.
@@ -63,6 +64,21 @@ export function evaluateConfig(env: Env): {
     !killSwitch,
     "recommended",
     killSwitch ? "ON — AI is disabled for all notes." : "Off.",
+  );
+
+  const budgetRaw = env.AI_MONTHLY_BUDGET_USD;
+  const budget = budgetRaw === undefined ? NaN : Number(budgetRaw);
+  add(
+    "AI_MONTHLY_BUDGET_USD",
+    budgetRaw === undefined || (Number.isFinite(budget) && budget > 0),
+    "recommended",
+    budgetRaw === undefined
+      ? `Not set — each workspace gets the default $${DEFAULT_MONTHLY_BUDGET_USD}/month of AI.`
+      : Number.isFinite(budget) && budget > 0
+        ? `$${budget}/month per workspace (override per company with ops:setAiBudget).`
+        : budget === 0
+          ? "0 — AI is paused for every workspace without its own budget."
+          : "Not a number — the default applies.",
   );
 
   const emailOk = !!(env.RESEND_API_KEY && env.ALERT_FROM_EMAIL);

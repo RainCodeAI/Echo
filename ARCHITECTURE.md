@@ -710,6 +710,44 @@ Constants live in `convex/lib/privacy.ts`, server functions in
 - Not done yet: automatic retention (e.g. delete audio after N days), a grace
   period or undo for workspace deletion, and deleting the Clerk account.
 
+## 11h. AI usage caps
+
+Pure logic is in `convex/lib/aiUsage.ts` (prices, budget rules) and the
+functions are in `convex/aiUsage.ts`. Ops commands are in `convex/ops.ts`.
+
+- **Recording:** every AI call adds its **estimated** cost to one `aiUsage`
+  row per company per UTC month. Costs are integer micro-dollars from
+  published prices.
+  - Transcription is priced per audio minute (the phone's duration, else
+    estimated from file size).
+  - Note structuring and customer drafts are priced from the tokens the API
+    reports. Usage is recorded even when the model's reply turns out
+    unusable.
+  - Unknown models are priced high, never as free.
+- **Budget:** the company's `aiMonthlyBudgetUsd` (ops-only), else
+  `AI_MONTHLY_BUDGET_USD`, else $25. A budget of 0 pauses AI for that
+  company: a per-workspace kill switch alongside the global
+  `OPENAI_KILL_SWITCH`.
+- **At the limit:**
+  - `processNoteInternal` skips AI before any paid call. The note is already
+    saved; it's marked failed with a message saying when AI resumes, and the
+    skip doesn't count as a retry attempt. A crew-flagged urgent note still
+    alerts, with the raw transcript.
+  - `requestAiRetry` and `customerUpdates.requestDraft` refuse with the same
+    message.
+  - The cap is checked before a run starts, so notes already in flight can
+    overshoot it slightly.
+- **Visibility:** an AI usage card in Settings shows spend against the limit,
+  the state (icon and label), this month's counts including skipped notes,
+  and up to 6 months of history. At 80% and at 100%, a banner appears on the
+  dashboard home.
+- **Ops:** `npx convex run ops:setAiBudget '{"companyId":"…","monthlyUsd":50}' --prod`
+  (`null` = back to the default) and `ops:aiUsageFor`. `ops:checkConfig`
+  reports `AI_MONTHLY_BUDGET_USD`.
+- **Keep the price table current:** if OpenAI changes prices, or we switch
+  models, update `CHAT_PRICES` / `TRANSCRIBE_PRICES`. The real OpenAI bill is
+  the source of truth.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

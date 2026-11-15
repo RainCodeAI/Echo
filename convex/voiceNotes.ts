@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
+import { assertAiBudget } from "./aiUsage";
 import { requireFieldSession } from "./lib/fieldSession";
 import { takeUploadSlot } from "./lib/uploadQuota";
 import { WORKER_FLAG_FALLBACK_MS, alertReason } from "./lib/alerts";
@@ -758,6 +759,7 @@ export const requestAiRetry = mutation({
         "This note has hit the AI retry limit. The transcript and audio are still saved for manual review.",
       );
     }
+    await assertAiBudget(ctx, note.companyId);
     await ctx.db.patch(noteId, {
       aiStatus: "pending",
       aiStartedAt: now,

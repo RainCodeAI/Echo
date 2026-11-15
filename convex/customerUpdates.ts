@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertSameCompany, requireCurrentUser } from "./lib/tenant";
+import { assertAiBudget } from "./aiUsage";
 import {
   DEFAULT_LOOKBACK_MS,
   DRAFTS_PER_HOUR,
@@ -52,6 +53,7 @@ export const requestDraft = mutation({
     const note = assertSameCompany(await ctx.db.get(args.noteId), user.companyId);
     if (!note.jobId) throw new Error("Link this note to a job first.");
     const job = assertSameCompany(await ctx.db.get(note.jobId), user.companyId);
+    await assertAiBudget(ctx, user.companyId);
     const now = Date.now();
 
     const updates = await jobUpdates(ctx, job);
@@ -220,7 +222,7 @@ export const discard = mutation({
 
 export const draftContext = internalQuery({
   args: { updateId: v.id("customerUpdates") },
-  handler: async (ctx, args): Promise<DraftContext | null> => {
+  handler: async (ctx, args): Promise<(DraftContext & { companyId: Id<"companies"> }) | null> => {
     const update = await ctx.db.get(args.updateId);
     if (!update || update.status !== "generating") return null;
     const [company, job, startNote] = await Promise.all([
@@ -242,6 +244,7 @@ export const draftContext = internalQuery({
     }
     const customer = await customerFor(ctx, job, startNote);
     return {
+      companyId: update.companyId,
       companyName: company.name,
       customerName: customer?.name ?? null,
       jobTitle: job.title,

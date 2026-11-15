@@ -35,9 +35,12 @@ export const generate = internalAction({
     }
 
     try {
+      const model = process.env.OPENAI_MODEL || DEFAULT_STRUCTURE_MODEL;
       const raw = await requestCustomerUpdate(new OpenAI({ apiKey, maxRetries: 1 }), {
         ...context,
-        model: process.env.OPENAI_MODEL || DEFAULT_STRUCTURE_MODEL,
+        model,
+        onUsage: (usage) =>
+          ctx.runMutation(internal.aiUsage.record, { companyId: context.companyId, kind: "customerUpdate", model, ...usage }),
       });
       const draft = sanitizeDraft(raw, context.companyName);
       await ctx.runMutation(internal.customerUpdates.saveDraft, { updateId, ...draft });

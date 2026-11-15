@@ -58,6 +58,13 @@ Optional overrides (defaults shown):
 npx convex env set --prod OPENAI_MODEL gpt-4o-mini
 ```
 
+Per-workspace monthly AI budget in USD (default 25; covers roughly 3,000+
+one-minute notes at the default models):
+
+```bash
+npx convex env set --prod AI_MONTHLY_BUDGET_USD 25
+```
+
 ```bash
 npx convex env set --prod OPENAI_TRANSCRIBE_MODEL whisper-1
 ```
@@ -97,8 +104,11 @@ Then create a **Production deploy key**: Convex dashboard → Project Settings
 → Deploy keys. Keep it for step 3.
 
 > Use a dedicated OpenAI project key for Echo with a monthly budget limit set
-> in the OpenAI dashboard. That's the cost backstop until per-tenant caps ship
-> (Phase 3). The kill switch is `npx convex env set --prod OPENAI_KILL_SWITCH 1`.
+> in the OpenAI dashboard as the overall backstop. Each workspace also has its
+> own monthly AI budget (`AI_MONTHLY_BUDGET_USD`). Raise or pause one company
+> with `npx convex run ops:setAiBudget '{"companyId":"…","monthlyUsd":50}' --prod`
+> (`0` pauses it, `null` restores the default). The global kill switch is
+> `npx convex env set --prod OPENAI_KILL_SWITCH 1`.
 
 ## 3. Vercel — app hosting
 
