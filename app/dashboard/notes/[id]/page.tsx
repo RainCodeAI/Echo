@@ -119,6 +119,12 @@ export default function NoteDetailPage({
             ? ` · transcript: ${note.transcriptSource}`
             : ""}
         </p>
+        {note.isSample ? (
+          <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900" data-testid="sample-banner">
+            This is a sample note so you can look around: a Spanish voice memo, summarized in English. Delete it at the
+            bottom of the page whenever you like.
+          </p>
+        ) : null}
         <NoteAlerts noteId={note._id} />
         {note.leadName || note.jobTitle ? (
           <p className="text-sm text-muted-foreground">

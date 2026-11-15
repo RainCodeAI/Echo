@@ -27,7 +27,7 @@ export function Topbar() {
   const me = useQuery(api.users.current, {});
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 sm:px-6">
+    <header className="flex h-16 shrink-0 print:hidden items-center justify-between border-b bg-background px-4 sm:px-6">
       <div>
         <h1 className="text-lg font-semibold leading-tight">
           {titleFor(pathname)}

@@ -30,7 +30,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r bg-card md:flex">
+    <aside className="hidden w-64 shrink-0 flex-col border-r bg-card md:flex print:hidden">
       <div className="flex h-16 items-center border-b px-6">
         <EchoLogo />
       </div>

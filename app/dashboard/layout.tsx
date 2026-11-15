@@ -44,11 +44,11 @@ function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-muted/30">
+    <div className="flex h-screen overflow-hidden bg-muted/30 print:block print:h-auto print:overflow-visible print:bg-white">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col print:block">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:overflow-visible print:p-0">
           <TermsGate>{children}</TermsGate>
         </main>
         <MobileNav />

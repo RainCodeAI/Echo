@@ -45,7 +45,8 @@ switching to a new FSM tool.
    on site. Write down their exact words; they become the success story or
    the reason it failed.
 2. **(10 min)** Sign them up live. Set the company name and trade, add every
-   crew member with a PIN, and print the QR poster (Team → entry link).
+   crew member with a PIN, and print the QR poster (Team → Print poster; the
+   dashboard's "Get set up" checklist walks through it).
    In Settings, add the owner's mobile, turn on **Urgent alerts** and the
    **Daily digest** (pick the hour they start their day), and press
    **Send test alert** and **Send digest now** while you're on the call.
