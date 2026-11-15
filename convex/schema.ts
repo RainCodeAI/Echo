@@ -168,6 +168,8 @@ export default defineSchema({
     termsVersion: v.optional(v.string()),
     termsAcceptedAt: v.optional(v.number()),
     termsAcceptedBy: v.optional(v.id("users")),
+    /** Crew PIN length (4 default, or 6). Members with a shorter PIN can't sign in until reset. */
+    pinLength: v.optional(v.number()),
     /** Getting-started checklist: crew link shared / poster printed; checklist hidden. */
     onboardingSharedAt: v.optional(v.number()),
     onboardingDismissedAt: v.optional(v.number()),
@@ -206,6 +208,8 @@ export default defineSchema({
     role: v.optional(v.string()),
     /** SHA-256 hex of `${companyId}:${pin}` (see `convex/lib/pin.ts`). */
     pinHash: v.string(),
+    /** Digits in this member's PIN (absent = 4). */
+    pinLength: v.optional(v.number()),
     isActive: v.boolean(),
     /** Recording notice acknowledged on the field page (version + when). */
     noticeVersion: v.optional(v.string()),
@@ -386,6 +390,10 @@ export default defineSchema({
     })
     .searchIndex("search_summary", {
       searchField: "aiSummary",
+      filterFields: ["companyId", "status"],
+    })
+    .searchIndex("search_ai_title", {
+      searchField: "aiTitle",
       filterFields: ["companyId", "status"],
     }),
 

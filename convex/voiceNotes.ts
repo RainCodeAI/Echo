@@ -10,6 +10,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
 import { assertAiBudget } from "./aiUsage";
+import { mergeSearchHits, normalizeSearch } from "./lib/search";
 import { requireFieldSession } from "./lib/fieldSession";
 import { takeUploadSlot } from "./lib/uploadQuota";
 import { WORKER_FLAG_FALLBACK_MS, alertReason } from "./lib/alerts";
@@ -278,9 +279,30 @@ export const listForCompany = query({
     const user = await requireCurrentUser(ctx);
     const limit = Math.min(args.limit ?? 50, 100);
     const FETCH_CAP = 200;
+    /** Per search index; results are merged across title, summary and transcript. */
+    const SEARCH_CAP = 100;
 
+    const term = normalizeSearch(args.search);
     let rows;
-    if (args.status) {
+    if (term) {
+      // Full-history search via the search indexes (not just recent notes).
+      const status = args.status;
+      const searchIn = (index: "search_transcript" | "search_summary" | "search_ai_title", field: "rawTranscript" | "aiSummary" | "aiTitle") =>
+        ctx.db
+          .query("voiceNotes")
+          .withSearchIndex(index, (q) => {
+            const base = q.search(field, term).eq("companyId", user.companyId);
+            return status ? base.eq("status", status) : base;
+          })
+          .take(SEARCH_CAP);
+      rows = mergeSearchHits(
+        await Promise.all([
+          searchIn("search_ai_title", "aiTitle"),
+          searchIn("search_summary", "aiSummary"),
+          searchIn("search_transcript", "rawTranscript"),
+        ]),
+      );
+    } else if (args.status) {
       const status = args.status;
       rows = await ctx.db
         .query("voiceNotes")
@@ -308,8 +330,8 @@ export const listForCompany = query({
         .take(FETCH_CAP);
     }
 
-    // Crew filter when the base index was chosen for status instead.
-    if (args.teamMemberId && args.status) {
+    // Crew filter when the base index was chosen for status or search instead.
+    if (args.teamMemberId && (args.status || term)) {
       rows = rows.filter((n) => n.teamMemberId === args.teamMemberId);
     }
     if (args.urgentOnly) {
@@ -318,14 +340,6 @@ export const listForCompany = query({
           n.workerFlaggedUrgent ||
           n.urgency === "high" ||
           n.urgency === "emergency",
-      );
-    }
-    const term = args.search?.trim().toLowerCase();
-    if (term) {
-      rows = rows.filter((n) =>
-        `${n.rawTranscript} ${n.aiSummary ?? ""} ${n.aiTitle ?? ""}`
-          .toLowerCase()
-          .includes(term),
       );
     }
 

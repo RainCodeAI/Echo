@@ -3,6 +3,7 @@
 import { EntryShareCard } from "@/components/team/entry-share-card";
 import { OfficeTeamManager } from "@/components/team/office-team-manager";
 import { TeamMembersManager } from "@/components/team/team-members-manager";
+import { PinLengthSetting } from "@/components/team/pin-length-setting";
 import { useEntryUrl } from "@/hooks/use-entry-url";
 
 /**
@@ -16,7 +17,7 @@ export default function TeamPage() {
       <div>
         <h2 className="text-xl font-semibold">Crew &amp; field access</h2>
         <p className="text-sm text-muted-foreground">
-          Add field workers with 4-digit PINs and share the public entry link.
+          Add field workers with PINs and share the public entry link.
           Workers never need a Clerk account.
         </p>
       </div>
@@ -30,6 +31,7 @@ export default function TeamPage() {
         isLoading={isLoading}
       />
 
+      <PinLengthSetting />
       <TeamMembersManager />
     </div>
   );

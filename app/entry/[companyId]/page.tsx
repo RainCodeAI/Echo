@@ -49,7 +49,7 @@ export default function FieldEntryPage({
             </CardHeader>
           </Card>
         ) : (
-          <FieldEntryGate companyId={companyId} companyName={company.name} />
+          <FieldEntryGate companyId={companyId} companyName={company.name} pinLength={company.pinLength} />
         )}
       </main>
     </div>

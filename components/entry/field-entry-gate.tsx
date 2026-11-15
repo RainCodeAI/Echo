@@ -37,6 +37,8 @@ const LOCKOUT_MS = 60_000;
 type FieldEntryGateProps = {
   companyId: Id<"companies">;
   companyName: string;
+  /** Digits in this company's crew PINs (4 or 6). */
+  pinLength?: number;
 };
 
 export function FieldEntryGate(props: FieldEntryGateProps) {
@@ -47,7 +49,7 @@ export function FieldEntryGate(props: FieldEntryGateProps) {
   );
 }
 
-function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
+function FieldEntryGateInner({ companyId, companyName, pinLength = 4 }: FieldEntryGateProps) {
   const verifyPin = useMutation(api.teamMembers.verifyPin);
   const { runner } = useFieldQueue();
 
@@ -102,7 +104,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
 
   // Auto-submit when 4 digits entered.
   useEffect(() => {
-    if (pin.length !== 4 || pinPending || isLocked || member) return;
+    if (pin.length !== pinLength || pinPending || isLocked || member) return;
     void handleVerify();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional on pin complete
   }, [pin]);
@@ -112,7 +114,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
       setPinError("Too many attempts. Wait before trying again.");
       return;
     }
-    if (pin.length !== 4) return;
+    if (pin.length !== pinLength) return;
 
     setPinPending(true);
     setPinError(null);
@@ -157,7 +159,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
   function handleDigit(digit: string) {
     if (isLocked || pinPending) return;
     setPinError(null);
-    setPin((current) => (current.length >= 4 ? current : `${current}${digit}`));
+    setPin((current) => (current.length >= pinLength ? current : `${current}${digit}`));
   }
 
   const switchUser = () => {
@@ -204,7 +206,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
       <CardHeader className="space-y-3 text-center">
         <CardTitle className="text-2xl">{companyName}</CardTitle>
         <CardDescription>
-          Enter your 4-digit crew PIN to record a field note.
+          Enter your {pinLength}-digit crew PIN to record a field note.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -217,6 +219,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
 
         <PinKeypad
           pin={pin}
+          length={pinLength}
           disabled={pinPending || isLocked}
           onDigit={handleDigit}
           onClear={() => {
@@ -240,7 +243,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
           <p className="text-center text-sm text-destructive">{pinError}</p>
         ) : null}
 
-        {pin.length === 4 && !pinPending ? (
+        {pin.length === pinLength && !pinPending ? (
           <Button
             type="button"
             className="w-full"

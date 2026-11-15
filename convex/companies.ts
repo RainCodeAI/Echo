@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireCurrentUser, requireOwner } from "./lib/tenant";
 import { normalizePhone } from "./lib/alerts";
+import { companyPinLength, memberPinLength } from "./lib/pin";
 import { isValidEmail } from "./lib/email";
 import { serviceTypeValidator } from "./schema";
 
@@ -17,6 +18,7 @@ export const publicProfile = query({
     return {
       _id: company._id,
       name: company.name,
+      pinLength: companyPinLength(company),
       primaryTrade: company.primaryTrade ?? null,
     };
   },
@@ -94,5 +96,22 @@ export const update = mutation({
 
     await ctx.db.patch(user.companyId, patch);
     return user.companyId;
+  },
+});
+
+/**
+ * Crew PIN length (owner only). Switching to 6 digits retires 4-digit PINs at
+ * once: those crew members can't sign in until the owner gives them a new PIN.
+ */
+export const setPinLength = mutation({
+  args: { length: v.union(v.literal(4), v.literal(6)) },
+  handler: async (ctx, { length }) => {
+    const user = await requireOwner(ctx);
+    await ctx.db.patch(user.companyId, { pinLength: length, updatedAt: Date.now() });
+    const active = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_company_and_active", (q) => q.eq("companyId", user.companyId).eq("isActive", true))
+      .collect();
+    return { needNewPin: active.filter((m) => memberPinLength(m) !== length).length };
   },
 });

@@ -229,6 +229,10 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       poster (one page, the QR scans on a phone), try the sample note, and add
       a crew member; the checklist moves along and goes away after the first
       real crew note.
+- [ ] **PINs and search:** on Team, switch to 6-digit PINs. The crew
+      member's old PIN stops working and their row says "Needs a new PIN".
+      Give them a 6-digit PIN; the entry page now shows 6 dots. Search Notes
+      for a word from your oldest note; it's found.
 - [ ] **Office users:** from Team, make the invited member the owner (you
       become a member), have them make you owner again, then remove them.
       They lose access on their next click, and their action items show as

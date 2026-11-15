@@ -15,7 +15,7 @@ import type { StepId } from "@/convex/lib/onboarding";
 
 const COPY: Record<StepId, { title: string; body: string }> = {
   profile: { title: "Name your company and pick your trade", body: "Crews see your name, and the AI uses your trade to read notes better." },
-  crew: { title: "Add your first crew member", body: "Each person gets a 4-digit PIN. No app, no account, no per-seat price." },
+  crew: { title: "Add your first crew member", body: "Each person gets their own PIN. No app, no account, no per-seat price." },
   share: { title: "Put the crew link where crews will see it", body: "Print the QR poster for the shop or a sticker for the truck, or text the link." },
   firstNote: {
     title: "Get the first field note",
