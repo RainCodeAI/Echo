@@ -8,7 +8,8 @@ import {
   lockoutDurationMs,
   safeEqualHex,
 } from "./lib/pin";
-import { buildFieldVerificationToken } from "./lib/fieldSession";
+import { buildFieldVerificationToken, requireFieldSession } from "./lib/fieldSession";
+import { RECORDING_NOTICE_VERSION } from "./lib/privacy";
 
 /**
  * Crew roster + PIN verification for field entry.
@@ -242,7 +243,7 @@ export const verifyPin = mutation({
     }
 
     const company = await ctx.db.get(companyId);
-    if (!company) {
+    if (!company || company.deletionRequestedAt) {
       return { ok: false as const, error: "Company not found." };
     }
 
@@ -276,6 +277,46 @@ export const verifyPin = mutation({
       },
       companyName: company.name,
       verificationToken,
+      /** Show the recording notice before this member's first recording. */
+      needsNotice: match.noticeVersion !== RECORDING_NOTICE_VERSION,
     };
+  },
+});
+
+/** The crew member read and accepted the recording notice (field session). */
+export const acknowledgeNotice = mutation({
+  args: {
+    companyId: v.id("companies"),
+    teamMemberId: v.id("teamMembers"),
+    verificationToken: v.string(),
+    version: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await requireFieldSession(ctx, args);
+    if (args.version !== RECORDING_NOTICE_VERSION) {
+      throw new Error("The notice was updated. Reload the page to read it.");
+    }
+    await ctx.db.patch(session.teamMemberId, {
+      noticeVersion: RECORDING_NOTICE_VERSION,
+      noticeAcceptedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Whether this signed-in crew member still has to read the notice (e.g. after a reload). */
+export const noticeStatus = query({
+  args: {
+    companyId: v.id("companies"),
+    teamMemberId: v.id("teamMembers"),
+    verificationToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const session = await requireFieldSession(ctx, args);
+      return { needsNotice: session.member.noticeVersion !== RECORDING_NOTICE_VERSION };
+    } catch {
+      return null;
+    }
   },
 });

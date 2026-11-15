@@ -100,6 +100,10 @@ export default function LandingPage() {
 
       <footer className="border-t py-6 text-center text-sm text-muted-foreground">
         {APP_NAME} · RainCode AI · Field notes that feed operations
+        <span className="mt-1 block text-xs">
+          <Link href="/privacy" className="hover:underline">Privacy</Link> ·{" "}
+          <Link href="/terms" className="hover:underline">Terms</Link>
+        </span>
       </footer>
     </div>
   );

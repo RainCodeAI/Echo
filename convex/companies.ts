@@ -13,7 +13,7 @@ export const publicProfile = query({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
     const company = await ctx.db.get(companyId);
-    if (!company) return null;
+    if (!company || company.deletionRequestedAt) return null;
     return {
       _id: company._id,
       name: company.name,

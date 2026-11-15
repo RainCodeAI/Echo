@@ -666,6 +666,50 @@ job's customer, who comes from the job's lead (or the note's lead).
     settings as note structuring. With AI off, the draft fails with a clear
     reason and nothing is called.
 
+## 11g. Privacy, consent, export and deletion
+
+Constants live in `convex/lib/privacy.ts`, server functions in
+`convex/privacy.ts`, and the legal pages in `app/privacy` and `app/terms`
+(settings in `lib/legal.ts`).
+
+- **Legal pages** (`/privacy`, `/terms`, public) are a **draft**. The entity
+  name, contact email and jurisdiction come from `NEXT_PUBLIC_LEGAL_*`, and a
+  "Draft" banner shows until `NEXT_PUBLIC_LEGAL_REVIEWED=1`. The service
+  provider list (`SUBPROCESSORS`) must match what's actually deployed.
+- **Owner terms acceptance:** `TermsGate` in the dashboard layout blocks the
+  owner until they accept the current `TERMS_VERSION`, which is stored on the
+  company with who and when. Bump the version to ask again. Office members
+  aren't blocked; the owner accepts for the business.
+- **Crew recording notice:** after a PIN check, `verifyPin` returns
+  `needsNotice`, and a resumed session asks `teamMembers.noticeStatus`. The
+  crew member taps "I understand" (`acknowledgeNotice`, which needs a field
+  session), stored with `RECORDING_NOTICE_VERSION` on the member. If the
+  status can't be fetched (offline), recording isn't blocked: never lose a
+  memo.
+- **Permanent note delete** (`privacy.deleteNote`, owner only): removes the
+  note, its audio and photo files and rows, and its alert log. Archiving stays
+  the reversible option. `materialOrders.covers` and customer-update source
+  lists may keep the dead id; both tolerate it.
+- **Export** (Settings → Your data, owner only): the browser pages through
+  `privacy.exportPage` for 9 tables and builds a zip with fflate
+  (`lib/export`). It holds readable CSVs (formula-guarded via
+  `convex/lib/csv.ts`), `data.json` with the raw rows, a README and
+  `media-links.csv`. With "include recordings and photos", each file is
+  downloaded into `audio/` and `photos/`; failures are listed in
+  `media-errors.txt`. PIN hashes, Clerk ids, storage ids and client upload
+  keys are never exported.
+- **Workspace deletion** (owner only, type the workspace name):
+  - `deletionRequestedAt` is set, alerts and digest are switched off, and
+    access stops at once: `requireCurrentUser`, `requireFieldSession`,
+    `verifyPin` and `publicProfile` all refuse.
+  - `deleteWorkspaceBatch` then deletes 100 rows at a time per table, in
+    `DELETION_ORDER` (crew access first, office users last, then the
+    company). Storage files and per-member upload quotas go with their rows.
+  - The client signs the owner out. The Clerk account itself remains;
+    signing in again creates a fresh workspace.
+- Not done yet: automatic retention (e.g. delete audio after N days), a grace
+  period or undo for workspace deletion, and deleting the Clerk account.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

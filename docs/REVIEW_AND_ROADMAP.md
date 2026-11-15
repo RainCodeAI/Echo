@@ -166,8 +166,11 @@ _The #1 trust killer in field software is losing someone's work._
 - [ ] Self-serve onboarding: printable QR poster or truck sticker, sample note,
       first-crew-member wizard.
 - [ ] Office user management: remove member, transfer ownership.
-- [ ] Data export (CSV + media zip) and workspace deletion; recording-consent
-      language; privacy policy/ToS.
+- [x] Data export (CSV + media zip) and workspace deletion; recording-consent
+      language; privacy policy/ToS. Includes per-note permanent delete, owner
+      terms acceptance and a once-per-crew-member recording notice (both
+      versioned). _The policy text is a draft: **you** fill in the company
+      details and have a lawyer review it (see DEPLOY.md)._
 - [ ] Per-tenant AI usage caps and cost dashboard (kill switch exists
       globally only).
 - [ ] Optional 6-digit PINs; Convex search indexes for full-history search.

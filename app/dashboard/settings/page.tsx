@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CompanyProfileForm } from "@/components/settings/company-profile-form";
+import { DataControls } from "@/components/settings/data-controls";
 
 export default function SettingsPage() {
   const me = useQuery(api.users.current, {});
@@ -59,6 +60,7 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+      <DataControls />
     </div>
   );
 }

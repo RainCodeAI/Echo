@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -24,6 +24,7 @@ import {
   useFieldQueue,
 } from "@/components/entry/field-queue-provider";
 import { FieldQueueStatus } from "@/components/entry/field-queue-status";
+import { RecordingNotice } from "@/components/entry/recording-notice";
 import {
   clearActiveSession,
   loadActiveSession,
@@ -63,6 +64,16 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
         }
       : null;
   });
+  // Set right after a PIN check; for a resumed session, ask the server.
+  const [justVerifiedNeedsNotice, setJustVerifiedNeedsNotice] = useState<boolean | null>(null);
+  const noticeStatus = useQuery(
+    api.teamMembers.noticeStatus,
+    member && justVerifiedNeedsNotice === null
+      ? { companyId, teamMemberId: member.id, verificationToken: member.verificationToken }
+      : "skip",
+  );
+  // Offline or unknown: don't block recording (never lose a memo).
+  const needsNotice = justVerifiedNeedsNotice ?? noticeStatus?.needsNotice ?? false;
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinPending, setPinPending] = useState(false);
@@ -127,6 +138,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
         verificationToken: result.verificationToken,
       };
       saveSession(companyId, verified);
+      setJustVerifiedNeedsNotice(result.needsNotice);
       setMember(verified);
       // This member's notes that were waiting for a PIN can go now.
       void runner.run({ force: true });
@@ -148,6 +160,30 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
     setPin((current) => (current.length >= 4 ? current : `${current}${digit}`));
   }
 
+  const switchUser = () => {
+    clearActiveSession(companyId);
+    setMember(null);
+    setJustVerifiedNeedsNotice(null);
+    setPin("");
+    setPinError(null);
+  };
+
+  if (member && needsNotice) {
+    return (
+      <Card className="border-none shadow-lg">
+        <CardContent className="px-5 py-8 sm:px-8">
+          <RecordingNotice
+            companyId={companyId}
+            companyName={companyName}
+            member={member}
+            onAcknowledged={() => setJustVerifiedNeedsNotice(false)}
+            onSwitchUser={switchUser}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (member) {
     return (
       <Card className="border-none shadow-lg">
@@ -156,12 +192,7 @@ function FieldEntryGateInner({ companyId, companyName }: FieldEntryGateProps) {
             companyId={companyId}
             companyName={companyName}
             member={member}
-            onSwitchUser={() => {
-              clearActiveSession(companyId);
-              setMember(null);
-              setPin("");
-              setPinError(null);
-            }}
+            onSwitchUser={switchUser}
           />
         </CardContent>
       </Card>

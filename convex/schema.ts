@@ -164,6 +164,12 @@ export default defineSchema({
     lastDigestAt: v.optional(v.number()),
     /** "sent" | "quiet" | "failed: …" | "not_configured" | "no_recipient" */
     lastDigestStatus: v.optional(v.string()),
+    /** Terms of Service + Privacy Policy acceptance (see convex/lib/privacy.ts). */
+    termsVersion: v.optional(v.string()),
+    termsAcceptedAt: v.optional(v.number()),
+    termsAcceptedBy: v.optional(v.id("users")),
+    /** Set when the owner deletes the workspace; data is removed in batches. */
+    deletionRequestedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }).index("by_digest_enabled", ["digestEnabled"]),
@@ -193,6 +199,9 @@ export default defineSchema({
     /** SHA-256 hex of `${companyId}:${pin}` (see `convex/lib/pin.ts`). */
     pinHash: v.string(),
     isActive: v.boolean(),
+    /** Recording notice acknowledged on the field page (version + when). */
+    noticeVersion: v.optional(v.string()),
+    noticeAcceptedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   })
