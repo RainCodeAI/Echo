@@ -11,6 +11,11 @@ import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
 import { requireFieldSession } from "./lib/fieldSession";
 import {
+  markEdited,
+  mergeAiStructure,
+  normalizeOwnerEdits,
+} from "./lib/noteEdits";
+import {
   actionItemValidator,
   materialLineValidator,
   suggestedJobUpdateValidator,
@@ -429,6 +434,22 @@ export const dashboardStats = query({
   },
 });
 
+/**
+ * Throw if an AI run is genuinely in flight (queued or running) — but let a
+ * run that died without reporting back (older than AI_STALE_MS) be replaced.
+ */
+function assertAiIdle(
+  note: { aiStatus: string; aiStartedAt?: number; updatedAt: number },
+  now: number,
+) {
+  const inFlight =
+    note.aiStatus === "pending" || note.aiStatus === "processing";
+  const startedAt = note.aiStartedAt ?? note.updatedAt;
+  if (inFlight && now - startedAt < AI_STALE_MS) {
+    throw new Error("AI is already running on this note — give it a moment.");
+  }
+}
+
 async function requireOwnedNote(ctx: MutationCtx, noteId: Id<"voiceNotes">) {
   const user = await requireCurrentUser(ctx);
   const note = assertSameCompany(await ctx.db.get(noteId), user.companyId);
@@ -524,9 +545,10 @@ export const setUrgency = mutation({
     urgency: urgencyValidator,
   },
   handler: async (ctx, { noteId, urgency }) => {
-    await requireOwnedNote(ctx, noteId);
+    const { note } = await requireOwnedNote(ctx, noteId);
     await ctx.db.patch(noteId, {
       urgency,
+      ownerEditedFields: markEdited(note.ownerEditedFields, ["urgency"]),
       updatedAt: Date.now(),
     });
     return noteId;
@@ -561,13 +583,22 @@ export const updateReview = mutation({
     workerFlaggedUrgent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireOwnedNote(ctx, args.noteId);
+    const { note } = await requireOwnedNote(ctx, args.noteId);
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     if (args.ownerNote !== undefined) {
       const trimmed = args.ownerNote.trim().slice(0, MAX_OWNER_NOTE_CHARS);
       patch.ownerNote = trimmed || undefined;
     }
-    if (args.urgency !== undefined) patch.urgency = args.urgency;
+    if (args.urgency !== undefined) {
+      patch.urgency = args.urgency;
+      // Only an actual change counts as an override: saving the form with
+      // the AI's urgency untouched must not freeze it against re-runs.
+      if (args.urgency !== note.urgency) {
+        patch.ownerEditedFields = markEdited(note.ownerEditedFields, [
+          "urgency",
+        ]);
+      }
+    }
     if (args.workerFlaggedUrgent !== undefined) {
       patch.workerFlaggedUrgent = args.workerFlaggedUrgent;
     }
@@ -642,19 +673,17 @@ export const setStatus = mutation({
  * processNoteInternal is idempotent enough for re-runs.
  */
 export const requestAiRetry = mutation({
-  args: { noteId: v.id("voiceNotes") },
-  handler: async (ctx, { noteId }) => {
+  args: {
+    noteId: v.id("voiceNotes"),
+    /** Let the AI replace fields the owner edited by hand. Default: keep them. */
+    overwriteOwnerEdits: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { noteId, overwriteOwnerEdits }) => {
     const { note } = await requireOwnedNote(ctx, noteId);
     const now = Date.now();
-    // Block while a run is genuinely in flight (both queued and running —
-    // checking only "processing" let a double-click schedule two paid runs),
-    // but let owners recover a run that died without reporting back.
-    const inFlight =
-      note.aiStatus === "pending" || note.aiStatus === "processing";
-    const startedAt = note.aiStartedAt ?? note.updatedAt;
-    if (inFlight && now - startedAt < AI_STALE_MS) {
-      throw new Error("AI is already running on this note — give it a moment.");
-    }
+    // Blocks while queued *or* running (a double-click used to schedule two
+    // paid runs), but lets owners recover a run that died silently.
+    assertAiIdle(note, now);
     if ((note.aiGenerationAttempts ?? 0) >= MAX_AI_ATTEMPTS) {
       throw new Error(
         "This note has hit the AI retry limit. The transcript and audio are still saved for manual review.",
@@ -664,10 +693,102 @@ export const requestAiRetry = mutation({
       aiStatus: "pending",
       aiStartedAt: now,
       aiErrorMessage: undefined,
+      ...(overwriteOwnerEdits ? { ownerEditedFields: undefined } : {}),
       updatedAt: now,
     });
     await ctx.scheduler.runAfter(0, internal.ai.processNoteInternal, {
       noteId,
+    });
+    return noteId;
+  },
+});
+
+/**
+ * Owner corrects the transcript. The correction is final: AI re-runs never
+ * re-transcribe over it (transcriptSource "manual"). Because the input to the
+ * AI changed, the retry budget resets. Optionally re-runs AI right away.
+ */
+export const updateTranscript = mutation({
+  args: {
+    noteId: v.id("voiceNotes"),
+    rawTranscript: v.string(),
+    rerunAi: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { noteId, rawTranscript, rerunAi }) => {
+    const { note } = await requireOwnedNote(ctx, noteId);
+    const transcript = rawTranscript.trim().slice(0, MAX_TRANSCRIPT_CHARS);
+    if (!transcript) {
+      throw new Error("The transcript can't be empty.");
+    }
+    const now = Date.now();
+    if (rerunAi) assertAiIdle(note, now);
+
+    await ctx.db.patch(noteId, {
+      rawTranscript: transcript,
+      transcriptSource: "manual",
+      aiGenerationAttempts: 0,
+      updatedAt: now,
+      ...(rerunAi
+        ? { aiStatus: "pending" as const, aiStartedAt: now, aiErrorMessage: undefined }
+        : {}),
+    });
+    if (rerunAi) {
+      await ctx.scheduler.runAfter(0, internal.ai.processNoteInternal, {
+        noteId,
+      });
+    }
+    return noteId;
+  },
+});
+
+/**
+ * Owner corrects AI-structured fields. Each edited field is protected from
+ * future AI re-runs. Pass only the fields being changed.
+ */
+export const updateAiFields = mutation({
+  args: {
+    noteId: v.id("voiceNotes"),
+    title: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    materials: v.optional(v.array(materialLineValidator)),
+    actionItems: v.optional(v.array(actionItemValidator)),
+    siteAddress: v.optional(v.string()),
+    timelineNotes: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { noteId, ...edits }) => {
+    const { note } = await requireOwnedNote(ctx, noteId);
+    const { patch, fields } = normalizeOwnerEdits(edits);
+    if (fields.length === 0) return noteId;
+    await ctx.db.patch(noteId, {
+      ...patch,
+      ownerEditedFields: markEdited(note.ownerEditedFields, fields),
+      updatedAt: Date.now(),
+    });
+    return noteId;
+  },
+});
+
+/** Tick an action item done/undone (protects the list from AI re-runs). */
+export const setActionItemCompleted = mutation({
+  args: {
+    noteId: v.id("voiceNotes"),
+    index: v.number(),
+    completed: v.boolean(),
+  },
+  handler: async (ctx, { noteId, index, completed }) => {
+    const { note } = await requireOwnedNote(ctx, noteId);
+    const items = note.actionItems ?? [];
+    if (!Number.isInteger(index) || index < 0 || index >= items.length) {
+      throw new Error("That action item no longer exists — refresh the page.");
+    }
+    const next = items.map((item, i) =>
+      i === index ? { ...item, completed: completed || undefined } : item,
+    );
+    await ctx.db.patch(noteId, {
+      actionItems: next,
+      ownerEditedFields: markEdited(note.ownerEditedFields, ["actionItems"]),
+      updatedAt: Date.now(),
     });
     return noteId;
   },
@@ -755,17 +876,24 @@ export const applyAiStructure = internalMutation({
     if (!note) return;
 
     const now = Date.now();
+    // Fields the owner corrected by hand keep the owner's value.
+    const structured = mergeAiStructure(
+      {
+        aiTitle: args.title,
+        aiSummary: args.summary,
+        materials: args.materials,
+        actionItems: args.actionItems,
+        urgency: args.urgency,
+        siteAddress: args.siteAddress,
+        timelineNotes: args.timelineNotes,
+        tags: args.tags,
+      },
+      note.ownerEditedFields,
+    );
     await ctx.db.patch(args.noteId, {
       aiStatus: "completed",
-      aiTitle: args.title,
-      aiSummary: args.summary,
-      materials: args.materials,
-      actionItems: args.actionItems,
-      urgency: args.urgency,
-      siteAddress: args.siteAddress,
-      timelineNotes: args.timelineNotes,
+      ...structured,
       suggestedJobUpdates: args.suggestedJobUpdates,
-      tags: args.tags,
       aiConfidence: args.confidence,
       aiProcessedAt: now,
       aiErrorMessage: undefined,

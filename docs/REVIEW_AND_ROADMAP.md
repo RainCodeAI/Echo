@@ -71,8 +71,8 @@ New tests: TTL regression, lockout escalation, prompt device-notes (29 → 34).
 
 ### Known issues not fixed (tracked in roadmap)
 - ~~`openai` v4 SDK / `zod` advisory~~ — fixed in Phase 0 (SDK v7, zod 4).
-- **AI retry overwrites an owner's manual urgency** (`applyAiStructure` writes
-  urgency unconditionally). Needs an "owner-set" marker. → Phase 1.
+- ~~AI retry overwrites an owner's manual urgency~~ — fixed in Phase 1
+  (owner-edited fields are protected from AI re-runs).
 - **Orphaned storage**: abandoned uploads, oversized/rejected uploads, and
   `generateFieldUploadUrl` has no per-session cap. → Phase 1 cleanup cron +
   rate limit.
@@ -128,12 +128,15 @@ _The #1 trust killer in field software is losing someone's work._
       survive reloads. See ARCHITECTURE.md §9.
 - [x] Persist the field session per device (12h token) so a reload doesn't
       force a PIN re-entry mid-shift.
-- [ ] Owner can edit the transcript and AI fields; mark "owner-set" so AI
-      retries don't clobber them (fixes known issue above).
+- [x] Owner can edit the transcript and AI fields; mark "owner-set" so AI
+      retries don't clobber them (fixes known issue above). Action items can
+      be ticked off.
 - [ ] Field-side "today's jobs" picker so notes arrive pre-linked.
 - [ ] Storage-cleanup cron for orphaned uploads; per-session upload cap.
 - [ ] `convex-test` integration tests for tenancy and auth boundaries
-      (cross-tenant reads, invite flow, field-session checks).
+      (cross-tenant reads, invite flow, field-session checks). _Started:
+      convex-test is set up (`tests/convex/`), covering the invite fix and
+      owner edits._
 
 ### Phase 2 — "Close the loop" (≈3–4 weeks) — _this is the product_
 - [ ] **Urgent alerts**: SMS (Twilio) and/or email (Resend) to the owner
