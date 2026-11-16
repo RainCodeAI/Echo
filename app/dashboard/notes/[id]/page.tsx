@@ -15,6 +15,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { NoteAiPanel } from "@/components/notes/note-ai-panel";
 import { NoteAiRetryButton } from "@/components/notes/note-ai-retry-button";
 import { CustomerUpdate } from "@/components/notes/customer-update";
+import { DeleteNote } from "@/components/notes/delete-note";
 import { NoteAlerts } from "@/components/notes/note-alerts";
 import { NoteLinks } from "@/components/notes/note-links";
 import { NoteOwnerFields } from "@/components/notes/note-owner-fields";
@@ -254,6 +255,8 @@ export default function NoteDetailPage({
           />
         </CardContent>
       </Card>
+
+      <DeleteNote noteId={note._id} />
     </div>
   );
 }

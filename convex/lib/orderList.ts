@@ -11,6 +11,8 @@
  *     later note asking for more of the same item shows up again.
  */
 
+import { toCsv } from "./csv";
+
 export type MaterialInput = {
   name: string;
   quantity?: string;
@@ -316,13 +318,6 @@ export function formatOrderText(header: OrderHeader, lines: OrderLine[]): string
   return out.join("\n");
 }
 
-/** Cells starting with these could run as formulas in Excel/Sheets. */
-function csvCell(value: string | number): string {
-  let s = String(value);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 export function formatOrderCsv(lines: OrderLine[]): string {
   const rows: (string | number)[][] = [["Item", "Quantity", "Unit", "Other quantities", "Notes", "From notes"]];
   for (const l of lines) {
@@ -335,5 +330,5 @@ export function formatOrderCsv(lines: OrderLine[]): string {
       l.sources.length,
     ]);
   }
-  return rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  return toCsv(rows);
 }

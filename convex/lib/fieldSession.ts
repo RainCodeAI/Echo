@@ -153,7 +153,7 @@ export async function requireFieldSession(
   }
 
   const company = await ctx.db.get(args.companyId);
-  if (!company) {
+  if (!company || company.deletionRequestedAt) {
     throw new Error("Company not found.");
   }
 

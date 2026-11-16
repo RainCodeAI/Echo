@@ -40,6 +40,10 @@ export async function requireCurrentUser(
       "Not authenticated. Call the `users.store` mutation after sign-in.",
     );
   }
+  const company = await ctx.db.get(user.companyId);
+  if (!company || company.deletionRequestedAt) {
+    throw new Error("This workspace has been deleted.");
+  }
   return user;
 }
 

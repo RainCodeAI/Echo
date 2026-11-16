@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { useStoreUser } from "@/hooks/use-store-user";
+import { TermsGate } from "@/components/privacy/terms-gate";
 
 /**
  * Authenticated dashboard shell (owners / office).
@@ -47,7 +48,9 @@ function DashboardShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <TermsGate>{children}</TermsGate>
+        </main>
         <MobileNav />
       </div>
     </div>

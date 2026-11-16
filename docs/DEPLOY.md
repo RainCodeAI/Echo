@@ -121,6 +121,10 @@ Then create a **Production deploy key**: Convex dashboard → Project Settings
    | `NEXT_PUBLIC_APP_URL` | `https://echo.raincode.ai` |
    | `NEXT_PUBLIC_SENTRY_DSN` | from step 4 (optional) |
    | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | from step 4 (optional, enables readable stack traces) |
+   | `NEXT_PUBLIC_LEGAL_ENTITY` | Your legal company name, shown in the Privacy Policy and Terms |
+   | `NEXT_PUBLIC_PRIVACY_EMAIL` | Where privacy requests go (an address you monitor) |
+   | `NEXT_PUBLIC_LEGAL_JURISDICTION` | Governing law, e.g. `the State of Texas` |
+   | `NEXT_PUBLIC_LEGAL_REVIEWED` | Set to `1` only after a lawyer has reviewed `/privacy` and `/terms`; removes the "Draft" banner |
 
 3. **Preview deployments.** Each one needs its own Convex backend. Either add
    a Convex **Preview** deploy key as `CONVEX_DEPLOY_KEY` in the *Preview*
@@ -211,6 +215,18 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       minute with the AI summary, and the note page shows "Urgent alert by text…".
 - [ ] **Digest:** tick *Daily digest email* (the timezone fills in), save, then
       *Send digest now*. The email arrives, and its links open the notes.
+- [ ] **Terms:** a new owner is asked to accept the Terms and Privacy Policy
+      before the dashboard opens. `/privacy` and `/terms` show your company
+      name and contact email, not `[placeholders]`.
+- [ ] **Recording notice:** a crew member's first PIN entry shows the notice,
+      and after "I understand" it doesn't come back (also after a reload).
+- [ ] **Export:** Settings → Your data → Export data (with recordings). The zip
+      opens, `notes.csv` opens in Excel/Sheets, and the audio files play.
+- [ ] **Delete a note permanently** from its page. It disappears and its
+      audio link stops working.
+- [ ] **Workspace deletion:** with a throwaway test workspace only. Type its
+      name and delete. You're signed out, its entry link says the company
+      wasn't found, and signing back in starts a fresh, empty workspace.
 - [ ] Sentry (if configured): trigger a test error and confirm it arrives.
 
 ### Rollback
