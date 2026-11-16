@@ -51,6 +51,7 @@ import type * as lib_people from "../lib/people.js";
 import type * as lib_pin from "../lib/pin.js";
 import type * as lib_privacy from "../lib/privacy.js";
 import type * as lib_prompts from "../lib/prompts.js";
+import type * as lib_search from "../lib/search.js";
 import type * as lib_tasks from "../lib/tasks.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as lib_uploadQuota from "../lib/uploadQuota.js";
@@ -105,6 +106,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pin": typeof lib_pin;
   "lib/privacy": typeof lib_privacy;
   "lib/prompts": typeof lib_prompts;
+  "lib/search": typeof lib_search;
   "lib/tasks": typeof lib_tasks;
   "lib/tenant": typeof lib_tenant;
   "lib/uploadQuota": typeof lib_uploadQuota;

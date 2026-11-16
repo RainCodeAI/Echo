@@ -1,15 +1,27 @@
 /**
- * PIN hashing for field-worker entry (Relay-style 4-digit codes).
+ * PIN hashing for field-worker entry (4-digit codes, or 6 when the company
+ * turns on longer PINs).
  *
  * Hashes are one-way and scoped by companyId so the same PIN on two companies
  * does not produce the same digest. Mutations compare hashes with a constant-
  * time check to reduce timing leaks.
  */
 
-const PIN_PATTERN = /^\d{4}$/;
+export type PinLength = 4 | 6;
+export const PIN_LENGTHS: readonly PinLength[] = [4, 6];
 
-export function isValidPin(pin: string): boolean {
-  return PIN_PATTERN.test(pin);
+/** The company's required PIN length (default 4). */
+export function companyPinLength(company: { pinLength?: number } | null | undefined): PinLength {
+  return company?.pinLength === 6 ? 6 : 4;
+}
+
+/** A crew member's PIN length (members created before the setting existed have 4). */
+export function memberPinLength(member: { pinLength?: number }): PinLength {
+  return member.pinLength === 6 ? 6 : 4;
+}
+
+export function isValidPin(pin: string, length: PinLength = 4): boolean {
+  return new RegExp(`^\\d{${length}}$`).test(pin);
 }
 
 /** SHA-256 hex digest of `${companyId}:${pin}`. */

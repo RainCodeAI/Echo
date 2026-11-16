@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { generatePin, isValidPin, normalizePin } from "@/lib/pin";
+import { generatePin, isValidPin, normalizePin, type PinLength } from "@/lib/pin";
 
 export type TeamMemberRow = {
   _id: Id<"teamMembers">;
@@ -39,13 +39,15 @@ export function TeamMemberDialog({
   member,
   trigger,
 }: TeamMemberDialogProps) {
+  const company = useQuery(api.companies.current, {});
+  const pinLength: PinLength = company?.pinLength === 6 ? 6 : 4;
   const createMember = useMutation(api.teamMembers.create);
   const updateMember = useMutation(api.teamMembers.update);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(member?.name ?? "");
   const [role, setRole] = useState(member?.role ?? "");
-  const [pin, setPin] = useState(mode === "create" ? generatePin() : "");
+  const [pin, setPin] = useState(mode === "create" ? generatePin(pinLength) : "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdPinReveal, setCreatedPinReveal] = useState<string | null>(null);
@@ -58,11 +60,11 @@ export function TeamMemberDialog({
       setCreatedPinReveal(null);
       setName(member?.name ?? "");
       setRole(member?.role ?? "");
-      setPin(mode === "create" ? generatePin() : "");
+      setPin(mode === "create" ? generatePin(pinLength) : "");
     } else if (mode === "create") {
       setName("");
       setRole("");
-      setPin(generatePin());
+      setPin(generatePin(pinLength));
       setCreatedPinReveal(null);
     } else {
       setName(member?.name ?? "");
@@ -81,13 +83,13 @@ export function TeamMemberDialog({
       return;
     }
 
-    if (mode === "create" && !isValidPin(pin)) {
-      setError("PIN must be exactly 4 digits.");
+    if (mode === "create" && !isValidPin(pin, pinLength)) {
+      setError(`PIN must be exactly ${pinLength} digits.`);
       return;
     }
 
-    if (mode === "edit" && pin && !isValidPin(pin)) {
-      setError("PIN must be exactly 4 digits.");
+    if (mode === "edit" && pin && !isValidPin(pin, pinLength)) {
+      setError(`PIN must be exactly ${pinLength} digits.`);
       return;
     }
 
@@ -149,7 +151,7 @@ export function TeamMemberDialog({
             </DialogHeader>
             <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-6 text-center">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                4-digit PIN
+                {pinLength}-digit PIN
               </p>
               <p className="mt-2 font-mono text-4xl font-semibold tracking-[0.35em] text-primary">
                 {createdPinReveal}
@@ -211,13 +213,13 @@ export function TeamMemberDialog({
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <Label htmlFor={`${mode}-pin`}>
-                    {mode === "create" ? "4-digit PIN" : "New 4-digit PIN"}
+                    {mode === "create" ? `${pinLength}-digit PIN` : `New ${pinLength}-digit PIN`}
                   </Label>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setPin(generatePin())}
+                    onClick={() => setPin(generatePin(pinLength))}
                   >
                     {mode === "create" ? "Regenerate" : "Generate"}
                   </Button>
@@ -225,13 +227,13 @@ export function TeamMemberDialog({
                 <Input
                   id={`${mode}-pin`}
                   inputMode="numeric"
-                  maxLength={4}
-                  pattern="\d{4}"
+                  maxLength={pinLength}
+                  pattern={`\\d{${pinLength}}`}
                   value={pin}
-                  onChange={(e) => setPin(normalizePin(e.target.value))}
+                  onChange={(e) => setPin(normalizePin(e.target.value, pinLength))}
                   className="font-mono tracking-[0.35em]"
                   placeholder={
-                    mode === "create" ? "1234" : "Leave blank to keep current"
+                    mode === "create" ? "1234".padEnd(pinLength, "56") : "Leave blank to keep current"
                   }
                   required={mode === "create"}
                   autoComplete="off"

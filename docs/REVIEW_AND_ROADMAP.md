@@ -75,12 +75,12 @@ New tests: TTL regression, lockout escalation, prompt device-notes (29 → 34).
   (owner-edited fields are protected from AI re-runs).
 - ~~Orphaned storage / uncapped upload URLs~~ — fixed in Phase 1 (daily
   cleanup cron + per-crew-member upload limit).
-- **Search/filter is in-memory over the latest 200 notes**, so older notes
-  aren't searchable, and `dashboardStats` scans every note. The search indexes
-  already exist in the schema. → Phase 3.
+- ~~**Search/filter is in-memory over the latest 200 notes**~~: search now
+  uses the search indexes over the full history (Phase 3). `dashboardStats`
+  still scans every note, which is fine at pilot scale.
 - **4-digit PINs are inherently weak** on a public URL. Lockouts make brute
-  force slow, not impossible. → Phase 3: optional 6-digit PINs and per-device
-  trust.
+  force slow, not impossible. Optional 6-digit PINs are now available
+  (Phase 3); per-device trust is still open.
 - README claims the field worker can link a note to a lead/job; only the
   owner can today.
 - 8 lint warnings (React 19 `set-state-in-effect`), all cosmetic.
@@ -177,7 +177,9 @@ _The #1 trust killer in field software is losing someone's work._
       workspace, a budget (env default, per-company override via ops, 0 =
       paused), skip-not-lose at the limit, Settings card and dashboard
       warning at 80%.
-- [ ] Optional 6-digit PINs; Convex search indexes for full-history search.
+- [x] Optional 6-digit PINs (switching retires 4-digit PINs; the Team page
+      flags who needs a new one); full-history note search via the search
+      indexes.
 
 ### Phase 4 — Suite leverage (ongoing)
 - [ ] Quill: "turn these materials into an estimate draft."

@@ -23,7 +23,7 @@ export function CrewPoster({ companyName, entryUrl, format }: { companyName: str
 
   const steps = [
     ["Scan the code", "Escanea el código"],
-    ["Enter your 4-digit PIN", "Ingresa tu PIN de 4 dígitos"],
+    ["Enter your crew PIN", "Ingresa tu PIN"],
     ["Tap record and talk", "Toca grabar y habla"],
   ];
 

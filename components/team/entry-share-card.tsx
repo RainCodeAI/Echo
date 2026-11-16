@@ -91,7 +91,7 @@ export function EntryShareCard({
           Field entry link
         </CardTitle>
         <CardDescription>
-          Share this URL or print the QR code. Crew members enter their 4-digit
+          Share this URL or print the QR code. Crew members enter their
           PIN — no app install or Clerk account required.
         </CardDescription>
       </CardHeader>

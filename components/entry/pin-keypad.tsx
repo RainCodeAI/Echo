@@ -13,6 +13,8 @@ const KEYPAD_ROWS = [
 
 type PinKeypadProps = {
   pin: string;
+  /** Digits in a PIN for this company (4 or 6). */
+  length?: number;
   disabled?: boolean;
   onDigit: (digit: string) => void;
   onClear: () => void;
@@ -21,6 +23,7 @@ type PinKeypadProps = {
 
 export function PinKeypad({
   pin,
+  length = 4,
   disabled,
   onDigit,
   onClear,
@@ -29,7 +32,7 @@ export function PinKeypad({
   return (
     <div className="space-y-5">
       <div className="flex justify-center gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length }).map((_, i) => (
           <span
             key={i}
             className={cn(
@@ -42,7 +45,7 @@ export function PinKeypad({
           />
         ))}
       </div>
-      <span className="sr-only">PIN length {pin.length} of 4</span>
+      <span className="sr-only">PIN length {pin.length} of {length}</span>
 
       <div className="mx-auto grid w-full max-w-[280px] gap-3">
         {KEYPAD_ROWS.map((row) => (
@@ -83,7 +86,7 @@ export function PinKeypad({
                   type="button"
                   variant="outline"
                   className="h-14 text-xl font-semibold tabular-nums"
-                  disabled={disabled || pin.length >= 4}
+                  disabled={disabled || pin.length >= length}
                   onClick={() => onDigit(key)}
                 >
                   {key}

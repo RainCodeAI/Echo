@@ -807,6 +807,30 @@ Logic is in `convex/lib/onboarding.ts` and `convex/onboarding.ts`. The UI is
     toward the first-note step.
   - Its note page says it's a sample. It's deleted like any note.
 
+## 11k. Longer PINs and full-history search
+
+- **Crew PIN length** (`companies.pinLength`, 4 or 6; owner-only
+  `companies.setPinLength`, on the Team page).
+  - Each crew member records the length of their PIN (`teamMembers.pinLength`;
+    absent means 4).
+  - `create` and `update` require the company's length.
+  - `verifyPin` rejects input of the wrong length and only matches members
+    whose PIN has the required length. So switching to 6 digits retires
+    4-digit PINs immediately, which is the security benefit; it is not a
+    "both work" transition.
+  - The Team page shows how many active crew members a switch would affect,
+    and flags "Needs a new PIN" on their rows until the owner resets them.
+  - The entry page reads the length from `publicProfile`; the keypad shows
+    that many dots and auto-submits at that length.
+  - Lockout escalation is unchanged. With 6 digits the space is 1,000,000.
+- **Note search** (`voiceNotes.listForCompany` with `search`):
+  - Uses the `search_ai_title`, `search_summary` and `search_transcript`
+    search indexes, filtered by company (and status), up to 100 hits each,
+    so it covers the full history instead of the newest 200 notes.
+  - `lib/search.ts#mergeSearchHits` ranks notes matching in more fields
+    first, then by each index's relevance.
+  - Crew and urgency filters apply after the search.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

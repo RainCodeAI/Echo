@@ -3,9 +3,11 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
 import {
+  companyPinLength,
   hashPin,
   isValidPin,
   lockoutDurationMs,
+  memberPinLength,
   safeEqualHex,
 } from "./lib/pin";
 import { buildFieldVerificationToken, requireFieldSession } from "./lib/fieldSession";
@@ -24,13 +26,21 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const user = await requireCurrentUser(ctx);
-    const members = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_company", (q) => q.eq("companyId", user.companyId))
-      .collect();
+    const [members, company] = await Promise.all([
+      ctx.db
+        .query("teamMembers")
+        .withIndex("by_company", (q) => q.eq("companyId", user.companyId))
+        .collect(),
+      ctx.db.get(user.companyId),
+    ]);
+    const required = companyPinLength(company);
 
     return members
-      .map(({ pinHash: _pinHash, ...safe }) => safe)
+      .map(({ pinHash: _pinHash, ...safe }) => ({
+        ...safe,
+        /** Their PIN is shorter than the company now requires: they can't sign in until reset. */
+        needsNewPin: memberPinLength(safe) !== required,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
 });
@@ -63,7 +73,7 @@ async function assertPinAvailable(
   }
 }
 
-/** Create a crew member with a 4-digit PIN. */
+/** Create a crew member with a PIN of the company's length. */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -74,8 +84,9 @@ export const create = mutation({
     const user = await requireCurrentUser(ctx);
     const name = args.name.trim();
     if (!name) throw new Error("Name is required.");
-    if (!isValidPin(args.pin)) {
-      throw new Error("PIN must be exactly 4 digits.");
+    const pinLength = companyPinLength(await ctx.db.get(user.companyId));
+    if (!isValidPin(args.pin, pinLength)) {
+      throw new Error(`PIN must be exactly ${pinLength} digits.`);
     }
 
     const now = Date.now();
@@ -87,6 +98,7 @@ export const create = mutation({
       name,
       role: args.role?.trim() || undefined,
       pinHash,
+      pinLength,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -121,9 +133,11 @@ export const update = mutation({
       args.isActive !== undefined ? args.isActive : member!.isActive;
 
     if (args.pin !== undefined) {
-      if (!isValidPin(args.pin)) {
-        throw new Error("PIN must be exactly 4 digits.");
+      const pinLength = companyPinLength(await ctx.db.get(user.companyId));
+      if (!isValidPin(args.pin, pinLength)) {
+        throw new Error(`PIN must be exactly ${pinLength} digits.`);
       }
+      patch.pinLength = pinLength;
       const pinHash = await hashPin(user.companyId, args.pin);
       if (willBeActive) {
         await assertPinAvailable(ctx, user.companyId, pinHash, args.memberId);
@@ -237,14 +251,15 @@ export const verifyPin = mutation({
       };
     }
 
-    if (!isValidPin(pin)) {
-      await recordPinFailure(ctx, companyId, now);
-      return { ok: false as const, error: "PIN must be 4 digits." };
-    }
-
     const company = await ctx.db.get(companyId);
     if (!company || company.deletionRequestedAt) {
       return { ok: false as const, error: "Company not found." };
+    }
+
+    const pinLength = companyPinLength(company);
+    if (!isValidPin(pin, pinLength)) {
+      await recordPinFailure(ctx, companyId, now);
+      return { ok: false as const, error: `PIN must be ${pinLength} digits.` };
     }
 
     const pinHash = await hashPin(companyId, pin);
@@ -255,7 +270,8 @@ export const verifyPin = mutation({
       )
       .collect();
 
-    const match = members.find((m) => safeEqualHex(m.pinHash, pinHash));
+    // Only PINs of the required length count: switching to 6 digits retires 4-digit PINs.
+    const match = members.find((m) => memberPinLength(m) === pinLength && safeEqualHex(m.pinHash, pinHash));
     if (!match) {
       await recordPinFailure(ctx, companyId, now);
       return { ok: false as const, error: "Incorrect PIN." };

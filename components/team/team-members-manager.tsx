@@ -68,7 +68,7 @@ export function TeamMembersManager() {
             <Users className="mx-auto h-10 w-10 text-muted-foreground/50" />
             <h3 className="mt-4 text-lg font-semibold">No crew members yet</h3>
             <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-              Add your first field worker with a 4-digit PIN, then share the
+              Add your first field worker with a PIN, then share the
               entry link or QR code above.
             </p>
             <div className="mt-4 flex justify-center">
@@ -96,7 +96,11 @@ export function TeamMembersManager() {
                         {member.role || "—"}
                       </td>
                       <td className="py-3 pr-4 text-muted-foreground">
-                        •••• (hidden)
+                        {member.needsNewPin && member.isActive ? (
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Needs a new PIN</Badge>
+                        ) : (
+                          "•••• (hidden)"
+                        )}
                       </td>
                       <td className="py-3 pr-4">
                         <Badge
@@ -153,7 +157,11 @@ export function TeamMembersManager() {
                     </Badge>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    PIN: •••• (hidden)
+                    {member.needsNewPin && member.isActive ? (
+                      <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Needs a new PIN</Badge>
+                    ) : (
+                      "PIN: •••• (hidden)"
+                    )}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <TeamMemberDialog

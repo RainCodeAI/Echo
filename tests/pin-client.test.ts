@@ -35,3 +35,13 @@ describe("isValidPin (client)", () => {
     expect(isValidPin("abcd")).toBe(false);
   });
 });
+
+describe("6-digit PINs (client)", () => {
+  it("generates, validates and normalizes six digits", () => {
+    for (let i = 0; i < 300; i++) expect(generatePin(6)).toMatch(/^\d{6}$/);
+    expect(isValidPin("012345", 6)).toBe(true);
+    expect(isValidPin("1234", 6)).toBe(false);
+    expect(isValidPin("123456")).toBe(false);
+    expect(normalizePin("12-34-56-78", 6)).toBe("123456");
+  });
+});
