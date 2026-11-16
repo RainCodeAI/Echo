@@ -9,6 +9,7 @@
  */
 
 import type * as ai from "../ai.js";
+import type * as aiUsage from "../aiUsage.js";
 import type * as alerts from "../alerts.js";
 import type * as companies from "../companies.js";
 import type * as crons from "../crons.js";
@@ -28,6 +29,7 @@ import type * as tasks from "../tasks.js";
 import type * as teamMembers from "../teamMembers.js";
 import type * as users from "../users.js";
 import type * as voiceNotes from "../voiceNotes.js";
+import type * as lib_aiUsage from "../lib/aiUsage.js";
 import type * as lib_alertProviders from "../lib/alertProviders.js";
 import type * as lib_alerts from "../lib/alerts.js";
 import type * as lib_configCheck from "../lib/configCheck.js";
@@ -57,6 +59,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
+  aiUsage: typeof aiUsage;
   alerts: typeof alerts;
   companies: typeof companies;
   crons: typeof crons;
@@ -76,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   teamMembers: typeof teamMembers;
   users: typeof users;
   voiceNotes: typeof voiceNotes;
+  "lib/aiUsage": typeof lib_aiUsage;
   "lib/alertProviders": typeof lib_alertProviders;
   "lib/alerts": typeof lib_alerts;
   "lib/configCheck": typeof lib_configCheck;

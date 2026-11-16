@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEntryUrl } from "@/hooks/use-entry-url";
+import { AiUsageBanner } from "@/components/settings/ai-usage-card";
 
 /**
  * Owner overview — pulse counts + shortcuts into notes and crew entry.
@@ -35,6 +36,7 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      <AiUsageBanner />
       <div>
         <h2 className="text-xl font-semibold">Welcome to Echo</h2>
         <p className="text-sm text-muted-foreground">

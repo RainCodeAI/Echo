@@ -174,6 +174,8 @@ async function batchFor(ctx: QueryCtx, table: DeletionTable, companyId: Id<"comp
       return await ctx.db.query("leads").withIndex("by_company", (q) => q.eq("companyId", companyId)).take(BATCH);
     case "users":
       return await ctx.db.query("users").withIndex("by_company", (q) => q.eq("companyId", companyId)).take(BATCH);
+    case "aiUsage":
+      return await ctx.db.query("aiUsage").withIndex("by_company_and_month", (q) => q.eq("companyId", companyId)).take(BATCH);
     case "alerts":
       return await ctx.db.query("alerts").withIndex("by_company_and_created", (q) => q.eq("companyId", companyId)).take(BATCH);
     case "customerUpdates":

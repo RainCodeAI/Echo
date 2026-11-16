@@ -12,6 +12,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { CompanyProfileForm } from "@/components/settings/company-profile-form";
 import { DataControls } from "@/components/settings/data-controls";
+import { AiUsageCard } from "@/components/settings/ai-usage-card";
 
 export default function SettingsPage() {
   const me = useQuery(api.users.current, {});
@@ -60,6 +61,7 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+      <AiUsageCard />
       <DataControls />
     </div>
   );

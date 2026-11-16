@@ -171,8 +171,10 @@ _The #1 trust killer in field software is losing someone's work._
       terms acceptance and a once-per-crew-member recording notice (both
       versioned). _The policy text is a draft: **you** fill in the company
       details and have a lawyer review it (see DEPLOY.md)._
-- [ ] Per-tenant AI usage caps and cost dashboard (kill switch exists
-      globally only).
+- [x] Per-tenant AI usage caps and cost dashboard: estimated monthly spend per
+      workspace, a budget (env default, per-company override via ops, 0 =
+      paused), skip-not-lose at the limit, Settings card and dashboard
+      warning at 80%.
 - [ ] Optional 6-digit PINs; Convex search indexes for full-history search.
 
 ### Phase 4 — Suite leverage (ongoing)

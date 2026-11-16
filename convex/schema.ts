@@ -168,6 +168,11 @@ export default defineSchema({
     termsVersion: v.optional(v.string()),
     termsAcceptedAt: v.optional(v.number()),
     termsAcceptedBy: v.optional(v.id("users")),
+    /**
+     * Monthly AI budget in USD for this company (ops-only override of
+     * AI_MONTHLY_BUDGET_USD; 0 pauses AI for this company).
+     */
+    aiMonthlyBudgetUsd: v.optional(v.number()),
     /** Set when the owner deletes the workspace; data is removed in batches. */
     deletionRequestedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -496,6 +501,23 @@ export default defineSchema({
   })
     .index("by_company_and_job", ["companyId", "jobId"])
     .index("by_company_and_created", ["companyId", "createdAt"]),
+
+  /** Estimated AI spend per company per UTC month (see convex/lib/aiUsage.ts). */
+  aiUsage: defineTable({
+    companyId: v.id("companies"),
+    /** "YYYY-MM" (UTC). */
+    month: v.string(),
+    costMicros: v.number(),
+    transcribeCalls: v.number(),
+    structureCalls: v.number(),
+    customerUpdateCalls: v.number(),
+    audioSeconds: v.number(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    /** Notes whose AI was skipped because the budget was used up. */
+    skippedNotes: v.number(),
+    updatedAt: v.number(),
+  }).index("by_company_and_month", ["companyId", "month"]),
 
   alerts: defineTable({
     companyId: v.id("companies"),

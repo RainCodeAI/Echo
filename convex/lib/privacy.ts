@@ -30,6 +30,7 @@ export const DELETION_ORDER = [
   "customerUpdates",
   "materialOrders",
   "voiceNotes",
+  "aiUsage",
   "jobs",
   "leads",
   "users",
