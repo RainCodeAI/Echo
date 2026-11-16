@@ -135,6 +135,22 @@ npx convex run ops:checkConfig --prod
 Expect `"ready": true`. Any `required` check with `"ok": false` blocks launch.
 The output never includes secret values.
 
+### Storage cleanup dry run (first deploy, and after any schema change that stores files)
+
+A daily cron deletes uploaded files that no note references, once they are
+24h old. Before relying on it, see what it *would* delete:
+
+```bash
+npx convex run storageCleanup:cleanupOrphanedUploads '{"dryRun":true}' --prod
+```
+
+Expect `deleted` to be small: abandoned or rejected uploads only. If it
+reports files you expect to keep, switch the cron off and investigate:
+
+```bash
+npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
+```
+
 ### Smoke test (about 15 minutes, do it on real phones)
 
 - [ ] Sign up as a new owner. The workspace is created and the dashboard loads.
@@ -147,6 +163,13 @@ The output never includes secret values.
       within about a minute. The detail page shows `transcript: whisper`, and
       audio and photos play or open.
 - [ ] The Spanish memo's summary is in English.
+- [ ] **Offline:** with a job picked, turn on airplane mode, record and
+      submit. You should see "Saved on this phone". Turn airplane mode off. The note
+      sends by itself and appears on the dashboard linked to that job.
+- [ ] **Reload mid-shift:** reload the entry page. You stay signed in (no PIN)
+      and an unsubmitted recording is restored.
+- [ ] **Owner edit:** change a material on a note, then Retry AI. Your edit is
+      kept.
 - [ ] A wrong PIN 10× locks entry for about 1 minute; a correct PIN afterwards
       works.
 - [ ] Invite a second email from **Team**, sign up with it, and confirm it

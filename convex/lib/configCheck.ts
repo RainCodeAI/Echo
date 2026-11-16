@@ -65,6 +65,16 @@ export function evaluateConfig(env: Env): {
     killSwitch ? "ON — AI is disabled for all notes." : "Off.",
   );
 
+  const cleanupOff = env.STORAGE_CLEANUP_DISABLED === "1";
+  add(
+    "STORAGE_CLEANUP_DISABLED",
+    !cleanupOff,
+    "recommended",
+    cleanupOff
+      ? "Daily orphaned-upload cleanup is OFF — unused uploads will accumulate."
+      : "Off (daily orphaned-upload cleanup runs).",
+  );
+
   add(
     "OPENAI_MODEL",
     true,

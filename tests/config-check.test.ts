@@ -35,6 +35,12 @@ describe("evaluateConfig", () => {
     expect(byName(r, "OPENAI_KILL_SWITCH").ok).toBe(false);
   });
 
+  it("warns (without blocking) when storage cleanup is switched off", () => {
+    const r = evaluateConfig({ ...GOOD, STORAGE_CLEANUP_DISABLED: "1" });
+    expect(r.ready).toBe(true);
+    expect(byName(r, "STORAGE_CLEANUP_DISABLED").ok).toBe(false);
+  });
+
   it("never echoes secret values", () => {
     const text = JSON.stringify(evaluateConfig(GOOD));
     expect(text).not.toContain(GOOD.ENTRY_TOKEN_SECRET);
