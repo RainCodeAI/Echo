@@ -163,6 +163,8 @@ export const recordResults = internalMutation({
     ),
   },
   handler: async (ctx, { companyId, noteId, isTest, results }) => {
+    const company = await ctx.db.get(companyId);
+    if (!company || company.deletionRequestedAt) return;
     const now = Date.now();
     for (const r of results) {
       await ctx.db.insert("alerts", { companyId, noteId, isTest, createdAt: now, ...r });
@@ -238,7 +240,7 @@ export const testAlertContext = internalQuery({
     if (!user) throw new Error("Not authenticated.");
     if (user.role !== "owner") throw new Error("Only the workspace owner can do that.");
     const company = await ctx.db.get(user.companyId);
-    if (!company) throw new Error("Not found");
+    if (!company || company.deletionRequestedAt) throw new Error("This workspace has been deleted.");
     return {
       companyId: company._id,
       companyName: company.name,

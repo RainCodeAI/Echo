@@ -35,6 +35,7 @@ import type * as lib_aiUsage from "../lib/aiUsage.js";
 import type * as lib_alertProviders from "../lib/alertProviders.js";
 import type * as lib_alerts from "../lib/alerts.js";
 import type * as lib_configCheck from "../lib/configCheck.js";
+import type * as lib_csv from "../lib/csv.js";
 import type * as lib_customerUpdate from "../lib/customerUpdate.js";
 import type * as lib_digest from "../lib/digest.js";
 import type * as lib_digestDelivery from "../lib/digestDelivery.js";
@@ -90,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   "lib/alertProviders": typeof lib_alertProviders;
   "lib/alerts": typeof lib_alerts;
   "lib/configCheck": typeof lib_configCheck;
+  "lib/csv": typeof lib_csv;
   "lib/customerUpdate": typeof lib_customerUpdate;
   "lib/digest": typeof lib_digest;
   "lib/digestDelivery": typeof lib_digestDelivery;

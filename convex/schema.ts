@@ -210,6 +210,8 @@ export default defineSchema({
     pinHash: v.string(),
     /** Digits in this member's PIN (absent = 4). */
     pinLength: v.optional(v.number()),
+    /** When the PIN was last reset: field sessions issued before this are refused. */
+    pinChangedAt: v.optional(v.number()),
     isActive: v.boolean(),
     /** Recording notice acknowledged on the field page (version + when). */
     noticeVersion: v.optional(v.string()),

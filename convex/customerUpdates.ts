@@ -230,7 +230,7 @@ export const draftContext = internalQuery({
       ctx.db.get(update.jobId),
       ctx.db.get(update.noteId),
     ]);
-    if (!company || !job || job.companyId !== update.companyId) return null;
+    if (!company || company.deletionRequestedAt || !job || job.companyId !== update.companyId) return null;
     const notes = [];
     for (const id of update.sourceNoteIds) {
       const n = await ctx.db.get(id);

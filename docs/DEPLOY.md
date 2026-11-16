@@ -251,6 +251,18 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       wasn't found, and signing back in starts a fresh, empty workspace.
 - [ ] Sentry (if configured): trigger a test error and confirm it arrives.
 
+### First-deploy checks from the bug sweep
+
+These need the real runtime (see [BUG_SWEEP_2026-11.md](BUG_SWEEP_2026-11.md)):
+
+- [ ] After `npx convex dev` (or the first deploy), `git diff convex/_generated`
+      shows nothing but formatting. The file has been maintained by hand.
+- [ ] The Convex dashboard shows the `search_ai_title` index as built. Notes
+      search finds your oldest note.
+- [ ] **PIN reset on a real phone:** sign in on the crew page, reset that
+      person's PIN in Team, and record a note. The phone asks for the PIN
+      again; after the new PIN, the held note sends.
+
 ### Rollback
 
 - **App:** Vercel → Deployments → previous deployment → *Instant Rollback*.

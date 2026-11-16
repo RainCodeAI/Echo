@@ -64,6 +64,9 @@ const EMPTY = {
 };
 
 async function bump(ctx: MutationCtx, companyId: Id<"companies">, delta: Partial<typeof EMPTY>) {
+  // A late record for a deleted (or deleting) workspace must not recreate rows.
+  const company = await ctx.db.get(companyId);
+  if (!company || company.deletionRequestedAt) return;
   const now = Date.now();
   const month = monthKey(now);
   const row = await monthRow(ctx, companyId, month);

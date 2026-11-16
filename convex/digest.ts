@@ -150,6 +150,8 @@ export const ownerCompany = internalQuery({
       .unique();
     if (!user) throw new Error("Not authenticated.");
     if (user.role !== "owner") throw new Error("Only the workspace owner can do that.");
+    const company = await ctx.db.get(user.companyId);
+    if (!company || company.deletionRequestedAt) throw new Error("This workspace has been deleted.");
     return user.companyId;
   },
 });

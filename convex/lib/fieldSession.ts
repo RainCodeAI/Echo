@@ -1,6 +1,6 @@
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Id, Doc } from "../_generated/dataModel";
-import { safeEqualHex } from "./pin";
+import { safeEqualHex, companyPinLength, memberPinLength } from "./pin";
 
 /**
  * Field-entry session tokens (PIN → short-lived signed token).
@@ -160,6 +160,15 @@ export async function requireFieldSession(
   const member = await ctx.db.get(args.teamMemberId);
   if (!member || member.companyId !== args.companyId || !member.isActive) {
     throw new Error("Crew member is inactive or not found. Ask your owner.");
+  }
+
+  // A PIN reset, or the company switching PIN length, ends existing sessions.
+  // ("Re-enter your PIN" makes the offline queue hold notes and ask for it.)
+  if (memberPinLength(member) !== companyPinLength(company)) {
+    throw new Error("Your PIN needs updating. Ask the office for your new PIN, then Re-enter your PIN.");
+  }
+  if (member.pinChangedAt && parsed.issuedAt < member.pinChangedAt) {
+    throw new Error("Your PIN was changed. Re-enter your PIN.");
   }
 
   return {
