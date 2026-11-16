@@ -430,14 +430,28 @@ export const get = query({
       }
     }
     let jobTitle: string | null = null;
+    let job: {
+      id: Id<"jobs">;
+      title: string;
+      status: "scheduled" | "in_progress" | "completed" | "cancelled";
+      scheduledFor: number | null;
+      address: string | null;
+    } | null = null;
     if (note.jobId) {
-      const job = await ctx.db.get(note.jobId);
-      if (job && job.companyId === user.companyId) {
-        jobTitle = job.title;
+      const doc = await ctx.db.get(note.jobId);
+      if (doc && doc.companyId === user.companyId) {
+        jobTitle = doc.title;
+        job = {
+          id: doc._id,
+          title: doc.title,
+          status: doc.status,
+          scheduledFor: doc.scheduledFor ?? null,
+          address: doc.address ?? null,
+        };
       }
     }
 
-    return { ...note, crewName, audioUrl, photos, leadName, jobTitle };
+    return { ...note, crewName, audioUrl, photos, leadName, jobTitle, job };
   },
 });
 
@@ -1013,10 +1027,21 @@ export const applyAiStructure = internalMutation({
       },
       note.ownerEditedFields,
     );
+    // Suggestions the office already applied or dismissed are decisions:
+    // keep them, and don't re-propose the same change.
+    const decided = (note.suggestedJobUpdates ?? []).filter(
+      (s) => s.appliedAt || s.dismissedAt,
+    );
+    const isDecided = (s: { field: string; value: string }) =>
+      decided.some((d) => d.field === s.field && d.value === s.value);
+    const suggestedJobUpdates = [
+      ...decided,
+      ...args.suggestedJobUpdates.filter((s) => !isDecided(s)),
+    ];
     await ctx.db.patch(args.noteId, {
       aiStatus: "completed",
       ...structured,
-      suggestedJobUpdates: args.suggestedJobUpdates,
+      suggestedJobUpdates,
       aiConfidence: args.confidence,
       aiProcessedAt: now,
       aiErrorMessage: undefined,

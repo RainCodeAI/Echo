@@ -194,6 +194,7 @@ export default function NoteDetailPage({
 
       <NoteAiPanel
         noteId={note._id}
+        job={note.job}
         ownerEditedFields={note.ownerEditedFields}
         aiStatus={note.aiStatus}
         aiTitle={note.aiTitle}

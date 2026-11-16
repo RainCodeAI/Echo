@@ -149,7 +149,9 @@ _The #1 trust killer in field software is losing someone's work._
 - [x] Action items become checkable tasks with an assignee; open items roll
       up on the dashboard (Tasks page; AI hints auto-assign on an unambiguous
       name match). _Follow-up: show crew their assigned items on the field page._
-- [ ] One-click **apply suggested job updates**.
+- [x] One-click **apply suggested job updates** (status, reschedule,
+      address, append to job notes): dates confirmed before applying,
+      undo that never overwrites a later edit, and dismiss/restore.
 - [ ] **Materials → order list**: aggregate across notes per job; export or
       share with the supply house.
 - [ ] Customer-update draft: "send the homeowner a summary" (text/email,

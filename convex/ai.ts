@@ -146,6 +146,7 @@ export const processNoteInternal = internalAction({
         workerFlaggedUrgent: note.workerFlaggedUrgent,
         transcript,
         job,
+        recordedAt: note.recordedAt,
         deviceNotes:
           transcriptSource === "whisper" && deviceTranscript !== transcript
             ? deviceTranscript
