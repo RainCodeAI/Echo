@@ -90,9 +90,11 @@ export interface MaterialLine {
 export interface ActionItem {
   title: string;
   assigneeHint?: string;
+  assignee?: { kind: "member" | "user"; id: string };
   dueHint?: string;
   priority?: ActionItemPriority;
   completed?: boolean;
+  completedAt?: number;
 }
 
 /**

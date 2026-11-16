@@ -19,6 +19,7 @@ import type * as jobs from "../jobs.js";
 import type * as leads from "../leads.js";
 import type * as ops from "../ops.js";
 import type * as storageCleanup from "../storageCleanup.js";
+import type * as tasks from "../tasks.js";
 import type * as teamMembers from "../teamMembers.js";
 import type * as users from "../users.js";
 import type * as voiceNotes from "../voiceNotes.js";
@@ -32,8 +33,10 @@ import type * as lib_fieldJobs from "../lib/fieldJobs.js";
 import type * as lib_fieldSession from "../lib/fieldSession.js";
 import type * as lib_noteEdits from "../lib/noteEdits.js";
 import type * as lib_openaiCalls from "../lib/openaiCalls.js";
+import type * as lib_people from "../lib/people.js";
 import type * as lib_pin from "../lib/pin.js";
 import type * as lib_prompts from "../lib/prompts.js";
+import type * as lib_tasks from "../lib/tasks.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as lib_uploadQuota from "../lib/uploadQuota.js";
 
@@ -55,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   leads: typeof leads;
   ops: typeof ops;
   storageCleanup: typeof storageCleanup;
+  tasks: typeof tasks;
   teamMembers: typeof teamMembers;
   users: typeof users;
   voiceNotes: typeof voiceNotes;
@@ -68,8 +72,10 @@ declare const fullApi: ApiFromModules<{
   "lib/fieldSession": typeof lib_fieldSession;
   "lib/noteEdits": typeof lib_noteEdits;
   "lib/openaiCalls": typeof lib_openaiCalls;
+  "lib/people": typeof lib_people;
   "lib/pin": typeof lib_pin;
   "lib/prompts": typeof lib_prompts;
+  "lib/tasks": typeof lib_tasks;
   "lib/tenant": typeof lib_tenant;
   "lib/uploadQuota": typeof lib_uploadQuota;
 }>;

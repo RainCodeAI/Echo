@@ -53,9 +53,11 @@ export type MaterialLine = {
 export type ActionItem = {
   title: string;
   assigneeHint?: string;
+  assignee?: { kind: "member" | "user"; id: string };
   dueHint?: string;
   priority?: Priority;
   completed?: boolean;
+  completedAt?: number;
 };
 
 /** The structured output of one AI run, in note-field names. */
@@ -173,7 +175,10 @@ export function normalizeOwnerEdits(edits: OwnerFieldEdits): {
         assigneeHint: clip(a.assigneeHint, LIMITS.textField),
         dueHint: clip(a.dueHint, LIMITS.textField),
         priority: a.priority,
+        // Keep assignment and completion time through an edit.
+        assignee: a.assignee,
         completed: a.completed || undefined,
+        completedAt: a.completed ? a.completedAt : undefined,
       }))
       .filter((a) => a.title.length > 0);
     fields.push("actionItems");

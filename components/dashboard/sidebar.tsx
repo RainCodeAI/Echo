@@ -6,6 +6,7 @@ import {
   AudioLines,
   Hammer,
   LayoutDashboard,
+  ListChecks,
   Settings,
   Users,
   UsersRound,
@@ -16,6 +17,7 @@ import { EchoLogo } from "@/components/brand/echo-logo";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/notes", label: "Voice notes", icon: AudioLines },
+  { href: "/dashboard/tasks", label: "Action items", icon: ListChecks },
   { href: "/dashboard/leads", label: "Leads", icon: Users },
   { href: "/dashboard/jobs", label: "Jobs", icon: Hammer },
   { href: "/dashboard/team", label: "Crew", icon: UsersRound },

@@ -102,12 +102,23 @@ export const materialLineValidator = v.object({
 });
 
 /** One AI-extracted or owner-edited action item. */
+/** Who an action item is assigned to: a crew member (PIN) or an office user. */
+export const assigneeValidator = v.object({
+  kind: v.union(v.literal("member"), v.literal("user")),
+  id: v.string(),
+});
+
 export const actionItemValidator = v.object({
   title: v.string(),
+  /** Free-text "who" from the AI ("Luis", "office"). */
   assigneeHint: v.optional(v.string()),
+  /** Resolved assignee (auto-matched from the hint, or set by the owner). */
+  assignee: v.optional(assigneeValidator),
   dueHint: v.optional(v.string()),
   priority: v.optional(actionItemPriorityValidator),
   completed: v.optional(v.boolean()),
+  /** When it was ticked done (for "completed recently"). */
+  completedAt: v.optional(v.number()),
 });
 
 /**

@@ -29,6 +29,7 @@ import { useEntryUrl } from "@/hooks/use-entry-url";
  */
 export default function DashboardOverviewPage() {
   const stats = useQuery(api.voiceNotes.dashboardStats, {});
+  const tasks = useQuery(api.tasks.summary, {});
   const recent = useQuery(api.voiceNotes.listForCompany, { limit: 5 });
   const { entryUrl, isLoading: entryLoading } = useEntryUrl();
 
@@ -55,9 +56,17 @@ export default function DashboardOverviewPage() {
           emphasis
         />
         <StatCard
-          label="Active crew"
-          value={stats?.activeCrew}
-          loading={stats === undefined}
+          label="Open action items"
+          value={tasks?.open}
+          loading={tasks === undefined}
+          href="/dashboard/tasks"
+          sub={
+            tasks && tasks.open
+              ? [tasks.high ? `${tasks.high} high` : null, tasks.unassigned ? `${tasks.unassigned} unassigned` : null]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              : undefined
+          }
         />
         <StatCard
           label="AI pending / failed"
@@ -172,20 +181,28 @@ function StatCard({
   value,
   loading,
   emphasis,
+  href,
+  sub,
 }: {
   label: string;
   value: string | number | undefined;
   loading?: boolean;
   emphasis?: boolean;
+  href?: string;
+  sub?: string;
 }) {
-  return (
-    <Card className={emphasis ? "border-orange-200/80" : undefined}>
+  const card = (
+    <Card
+      className={`${emphasis ? "border-orange-200/80" : ""} ${href ? "h-full transition hover:border-primary/40" : ""}`}
+    >
       <CardHeader className="pb-2">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-3xl tabular-nums">
           {loading ? <Skeleton className="h-9 w-12" /> : (value ?? "—")}
         </CardTitle>
+        {sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
       </CardHeader>
     </Card>
   );
+  return href ? <Link href={href}>{card}</Link> : card;
 }

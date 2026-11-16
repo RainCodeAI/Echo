@@ -56,6 +56,9 @@ export function NoteAiEditor(props: Props) {
       dueHint: a.dueHint ?? "",
       priority: a.priority ?? "",
       completed: !!a.completed,
+      // Not editable here, but must survive a save.
+      assignee: a.assignee,
+      completedAt: a.completedAt,
     })),
   };
 
@@ -91,6 +94,8 @@ export function NoteAiEditor(props: Props) {
         dueHint: a.dueHint || undefined,
         priority: (a.priority || undefined) as ActionItem["priority"],
         completed: a.completed || undefined,
+        assignee: a.assignee,
+        completedAt: a.completedAt,
       }));
     }
     if (Object.keys(changes).length === 1) {
@@ -265,7 +270,15 @@ export function NoteAiEditor(props: Props) {
           onClick={() =>
             set("actionItems", [
               ...form.actionItems,
-              { title: "", assigneeHint: "", dueHint: "", priority: "", completed: false },
+              {
+                title: "",
+                assigneeHint: "",
+                dueHint: "",
+                priority: "",
+                completed: false,
+                assignee: undefined,
+                completedAt: undefined,
+              },
             ])
           }
         >

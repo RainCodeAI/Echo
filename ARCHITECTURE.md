@@ -548,6 +548,31 @@ atomically, so it's one digest per local day.
 - Settings → *Send digest now* (owner only) sends a preview, even on a quiet
   day.
 
+## 11c. Action items as tasks
+
+Action items stay inside their note (`voiceNotes.actionItems`, so the owner
+edit and AI-merge rules from §6.5 apply unchanged). Each item can carry an
+`assignee` (`{ kind: "member" | "user", id }`: crew or office) and
+`completedAt`.
+
+- **Auto-assignment** (`applyAiStructure` → `lib/tasks.ts#matchAssignee`): the
+  AI's free-text hint becomes a real assignee only on an unambiguous match.
+  That means a full name, a unique first name, or a first name plus matching
+  surname prefix ("Luis G"). Generic ("office"), ambiguous ("Chris" ×2) or
+  other-company names stay unassigned.
+- **Mutations** `setActionItemAssignee` / `setActionItemCompleted` take an
+  `expectedTitle` and refuse if the item at that index changed since it was
+  shown, so a click never acts on the wrong item. Both mark `actionItems` as
+  owner-edited, so AI re-runs keep assignments and ticks. Assignees must
+  belong to the note's company.
+- **Tasks page** (`/dashboard/tasks`, `convex/tasks.ts`): open items flattened
+  across the newest 500 notes (archived notes excluded). High priority first,
+  then oldest. Filters: everyone, unassigned, or a person. "Done this week"
+  shows recent completions. The dashboard card shows open, high-priority and
+  unassigned counts.
+- If item volume outgrows the 500-note scan, move action items to their own
+  table. The `{noteId, index}` addressing is the only thing the UI depends on.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

@@ -12,6 +12,9 @@ import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
 import { requireFieldSession } from "./lib/fieldSession";
 import { takeUploadSlot } from "./lib/uploadQuota";
 import { WORKER_FLAG_FALLBACK_MS, alertReason } from "./lib/alerts";
+import { matchAssignee } from "./lib/tasks";
+import { assigneeBelongsTo, loadPeople } from "./lib/people";
+import { assigneeValidator } from "./schema";
 import {
   markEdited,
   mergeAiStructure,
@@ -822,20 +825,71 @@ export const updateAiFields = mutation({
 });
 
 /** Tick an action item done/undone (protects the list from AI re-runs). */
+/**
+ * Resolve an action item by index, refusing if the list changed since the
+ * caller rendered it (e.g. an AI re-run reordered it), so a click can never
+ * tick or reassign the wrong item.
+ */
+function actionItemAt(
+  items: { title: string }[],
+  index: number,
+  expectedTitle: string | undefined,
+) {
+  if (!Number.isInteger(index) || index < 0 || index >= items.length) {
+    throw new Error("That action item no longer exists — refresh the page.");
+  }
+  if (expectedTitle !== undefined && items[index].title !== expectedTitle) {
+    throw new Error("This note's action items just changed — refresh and try again.");
+  }
+}
+
 export const setActionItemCompleted = mutation({
   args: {
     noteId: v.id("voiceNotes"),
     index: v.number(),
     completed: v.boolean(),
+    expectedTitle: v.optional(v.string()),
   },
-  handler: async (ctx, { noteId, index, completed }) => {
+  handler: async (ctx, { noteId, index, completed, expectedTitle }) => {
     const { note } = await requireOwnedNote(ctx, noteId);
     const items = note.actionItems ?? [];
-    if (!Number.isInteger(index) || index < 0 || index >= items.length) {
-      throw new Error("That action item no longer exists — refresh the page.");
+    actionItemAt(items, index, expectedTitle);
+    const now = Date.now();
+    const next = items.map((item, i) =>
+      i === index
+        ? {
+            ...item,
+            completed: completed || undefined,
+            completedAt: completed ? now : undefined,
+          }
+        : item,
+    );
+    await ctx.db.patch(noteId, {
+      actionItems: next,
+      ownerEditedFields: markEdited(note.ownerEditedFields, ["actionItems"]),
+      updatedAt: now,
+    });
+    return noteId;
+  },
+});
+
+/** Assign (or unassign with null) one action item to a crew member or office user. */
+export const setActionItemAssignee = mutation({
+  args: {
+    noteId: v.id("voiceNotes"),
+    index: v.number(),
+    expectedTitle: v.optional(v.string()),
+    assignee: v.union(assigneeValidator, v.null()),
+  },
+  handler: async (ctx, { noteId, index, expectedTitle, assignee }) => {
+    const { user, note } = await requireOwnedNote(ctx, noteId);
+    const items = note.actionItems ?? [];
+    actionItemAt(items, index, expectedTitle);
+    if (assignee && !(await assigneeBelongsTo(ctx, user.companyId, assignee))) {
+      throw new Error("Not found");
     }
     const next = items.map((item, i) =>
-      i === index ? { ...item, completed: completed || undefined } : item,
+      i === index ? { ...item, assignee: assignee ?? undefined } : item,
     );
     await ctx.db.patch(noteId, {
       actionItems: next,
@@ -937,13 +991,21 @@ export const applyAiStructure = internalMutation({
     if (!note) return;
 
     const now = Date.now();
+    // Turn the AI's "who" hints into real assignees when the name match is
+    // unambiguous ("Luis" → crew member Luis). Generic hints stay unassigned.
+    const people = await loadPeople(ctx, note.companyId);
+    const actionItems = args.actionItems.map((a) => {
+      if (a.assignee) return a;
+      const match = matchAssignee(a.assigneeHint, people);
+      return match ? { ...a, assignee: match } : a;
+    });
     // Fields the owner corrected by hand keep the owner's value.
     const structured = mergeAiStructure(
       {
         aiTitle: args.title,
         aiSummary: args.summary,
         materials: args.materials,
-        actionItems: args.actionItems,
+        actionItems,
         urgency: args.urgency,
         siteAddress: args.siteAddress,
         timelineNotes: args.timelineNotes,

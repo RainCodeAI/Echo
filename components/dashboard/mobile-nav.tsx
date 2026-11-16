@@ -6,6 +6,7 @@ import {
   AudioLines,
   Hammer,
   LayoutDashboard,
+  ListChecks,
   Settings,
   UsersRound,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/notes", label: "Notes", icon: AudioLines },
+  { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks },
   { href: "/dashboard/jobs", label: "Jobs", icon: Hammer },
   { href: "/dashboard/team", label: "Crew", icon: UsersRound },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
