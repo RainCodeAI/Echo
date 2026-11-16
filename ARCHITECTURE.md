@@ -527,6 +527,27 @@ Items marked ✅ are covered by integration tests in `tests/convex/`
   failing.
 - Settings → *Send test alert* (owner only) checks the setup end to end.
 
+## 11b. Daily digest
+
+An hourly cron (`crons.ts`, :07 UTC) runs `digestRunner:runDueDigests`
+(**Node runtime**, for full timezone data). For each company with
+`digestEnabled`, `lib/digest.ts#digestDueDateKey` checks whether it's at or
+just past `digestHour` (default 7) in `companies.timezone` (invalid or blank
+zone → UTC). A short catch-up window (3h) covers a missed run without sending
+a "morning" digest in the afternoon. `digest:claim` sets `lastDigestDateKey`
+atomically, so it's one digest per local day.
+
+- **Content** (`digest:payload`): notes from the last 24h (crews, urgent, open
+  action items, materials grouped by job, AI failures), the top 5 unreviewed
+  notes with links (urgent first), and a count of the rest still waiting.
+- **Quiet days** (no new notes and nothing waiting) send nothing; the status
+  is recorded as `quiet`.
+- **Recipient:** `notificationEmail`, else the owner's sign-in email. Email
+  only, through the Resend setup from §11a. `lastDigestStatus` records each
+  run's outcome and is shown in Settings.
+- Settings → *Send digest now* (owner only) sends a preview, even on a quiet
+  day.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

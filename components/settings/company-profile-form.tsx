@@ -30,6 +30,11 @@ export function CompanyProfileForm() {
   const [notificationEmail, setNotificationEmail] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [alertPhone, setAlertPhone] = useState("");
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestHour, setDigestHour] = useState(7);
+  const sendDigestNow = useAction(api.digest.sendNow);
+  const [digestPending, setDigestPending] = useState(false);
+  const [digestResult, setDigestResult] = useState<string | null>(null);
   const sendTestAlert = useAction(api.alerts.sendTestAlert);
   const [testPending, setTestPending] = useState(false);
   const [testResults, setTestResults] = useState<
@@ -52,6 +57,8 @@ export function CompanyProfileForm() {
     setNotificationEmail(company.notificationEmail ?? "");
     setNotificationsEnabled(company.notificationsEnabled ?? false);
     setAlertPhone(company.alertPhone ?? "");
+    setDigestEnabled(company.digestEnabled ?? false);
+    setDigestHour(company.digestHour ?? 7);
   }, [company]);
 
   if (company === undefined) {
@@ -78,6 +85,8 @@ export function CompanyProfileForm() {
         notificationEmail: notificationEmail.trim(),
         alertPhone: alertPhone.trim(),
         notificationsEnabled,
+        digestEnabled,
+        digestHour,
       });
       setMessage("Saved.");
     } catch (err) {
@@ -197,6 +206,65 @@ export function CompanyProfileForm() {
           </span>
         </label>
 
+        <div className="space-y-2 rounded-lg border bg-muted/30 px-3 py-3">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-input"
+              checked={digestEnabled}
+              onChange={(e) => {
+                setDigestEnabled(e.target.checked);
+                // The digest goes out at a local hour: default the timezone
+                // to this browser's if none is set yet.
+                if (e.target.checked && !timezone.trim()) {
+                  try {
+                    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+                  } catch {
+                    /* leave blank */
+                  }
+                }
+              }}
+            />
+            <span className="text-sm">
+              <span className="font-medium">Daily digest email</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                One email each morning: notes from the last 24 hours, what needs
+                you, urgent items and materials requested. Skipped on quiet days.
+              </span>
+            </span>
+          </label>
+          <div className="flex flex-wrap items-center gap-2 pl-7 text-sm">
+            <Label htmlFor="digest-hour" className="font-normal">
+              Send at
+            </Label>
+            <select
+              id="digest-hour"
+              value={digestHour}
+              disabled={!digestEnabled}
+              onChange={(e) => setDigestHour(Number(e.target.value))}
+              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+            >
+              {[4, 5, 6, 7, 8, 9, 10, 17, 18, 19].map((h) => (
+                <option key={h} value={h}>
+                  {h === 12 ? "12 pm" : h > 12 ? `${h - 12} pm` : `${h} am`}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">
+              {timezone.trim() ? `(${timezone.trim()})` : "(set a timezone above)"}
+            </span>
+          </div>
+          {company.lastDigestStatus ? (
+            <p className="pl-7 text-xs text-muted-foreground" data-testid="digest-last">
+              Last digest
+              {company.lastDigestAt
+                ? ` ${new Date(company.lastDigestAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+                : ""}
+              : {company.lastDigestStatus === "quiet" ? "skipped (quiet day)" : company.lastDigestStatus}
+            </p>
+          ) : null}
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={pending}>
             {pending ? (
@@ -219,7 +287,7 @@ export function CompanyProfileForm() {
         <div className="space-y-2 rounded-lg border px-3 py-3" data-testid="test-alert">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm">
-              <span className="font-medium">Check your alerts</span>
+              <span className="font-medium">Check your alerts and digest</span>
               <span className="block text-xs text-muted-foreground">
                 Sends a test to the saved email and mobile. Save changes first.
               </span>
@@ -272,6 +340,45 @@ export function CompanyProfileForm() {
                 </li>
               ))}
             </ul>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
+            <p className="text-xs text-muted-foreground">
+              Preview today&apos;s digest in your inbox.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={digestPending}
+              onClick={async () => {
+                setDigestPending(true);
+                setDigestResult(null);
+                try {
+                  const r = await sendDigestNow({});
+                  setDigestResult(
+                    r.status === "sent"
+                      ? `Sent: "${r.subject}"`
+                      : r.status === "not_configured"
+                        ? "Email isn't set up on the server yet."
+                        : r.status === "no_recipient"
+                          ? "Add an alert email first."
+                          : r.status,
+                  );
+                } catch (err) {
+                  setDigestResult(err instanceof Error ? err.message : "Could not send.");
+                } finally {
+                  setDigestPending(false);
+                }
+              }}
+            >
+              {digestPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Send digest now
+            </Button>
+          </div>
+          {digestResult ? (
+            <p className="text-sm" data-testid="digest-result">
+              {digestResult}
+            </p>
           ) : null}
         </div>
       </fieldset>

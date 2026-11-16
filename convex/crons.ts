@@ -12,4 +12,8 @@ crons.daily(
   {},
 );
 
+// Daily digests: hourly pass sends whichever companies are at their chosen
+// local hour (convex/digestRunner.ts). One digest per company per day.
+crons.hourly("daily digests", { minuteUTC: 7 }, internal.digestRunner.runDueDigests, {});
+
 export default crons;

@@ -209,6 +209,8 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       then *Send test alert*. Both channels say "sent ✓" and arrive.
 - [ ] Record a note flagged urgent. The text/email arrives within about a
       minute with the AI summary, and the note page shows "Urgent alert by text…".
+- [ ] **Digest:** tick *Daily digest email* (the timezone fills in), save, then
+      *Send digest now*. The email arrives, and its links open the notes.
 - [ ] Sentry (if configured): trigger a test error and confirm it arrives.
 
 ### Rollback

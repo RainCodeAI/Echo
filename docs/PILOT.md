@@ -46,8 +46,9 @@ switching to a new FSM tool.
    the reason it failed.
 2. **(10 min)** Sign them up live. Set the company name and trade, add every
    crew member with a PIN, and print the QR poster (Team → entry link).
-   In Settings, add the owner's mobile, turn on **Urgent alerts**, and press
-   **Send test alert** while you're on the call.
+   In Settings, add the owner's mobile, turn on **Urgent alerts** and the
+   **Daily digest** (pick the hour they start their day), and press
+   **Send test alert** and **Send digest now** while you're on the call.
 3. **(10 min)** The owner records a test note on their own phone, then you
    walk the dashboard together: review, mark reviewed, link to a job.
 4. **(5 min)** Agree on the ask: every crew lead records at least one note
