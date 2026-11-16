@@ -439,6 +439,22 @@ export default defineSchema({
    * Delivery log for urgent-note alerts (one row per channel per attempt).
    * Recipients are stored masked. `noteId` is absent for settings test alerts.
    */
+  /**
+   * A materials order the office marked as placed for a job (see
+   * convex/lib/orderList.ts). `covers` lists the note material lines it
+   * included, so they drop off the job's "to order" list.
+   */
+  materialOrders: defineTable({
+    companyId: v.id("companies"),
+    jobId: v.id("jobs"),
+    /** Snapshot of what was ordered, for the order history. */
+    lines: v.array(v.object({ key: v.string(), name: v.string(), quantity: v.string() })),
+    /** sourceKey()s: `${noteId}#${lineKey}`. */
+    covers: v.array(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_company_and_job", ["companyId", "jobId"]),
+
   alerts: defineTable({
     companyId: v.id("companies"),
     noteId: v.optional(v.id("voiceNotes")),

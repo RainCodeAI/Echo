@@ -602,6 +602,35 @@ logic in `convex/lib/jobUpdates.ts`).
 - **Dismiss / restore** marks `dismissedAt`. AI re-runs keep decided
   (applied or dismissed) suggestions and drop new duplicates of them.
 
+## 11e. Materials → order list
+
+`/dashboard/materials` (`convex/materials.ts`, pure logic in
+`convex/lib/orderList.ts`) merges the materials crews mentioned across a
+job's notes into one list for the supply house.
+
+- **Merging:** same item and same unit merge. Names compare case-, spacing-
+  and punctuation-insensitively with a singular last word ("Architectural
+  Shingles" = "architectural shingle"), and units are normalized ("bdl",
+  "bundles" → bundle). Different units stay separate lines.
+- **Quantities:** numbers, fractions ("2 1/2"), thousands and simple words
+  ("a dozen", "a box") add up. Approximate amounts and ranges order the upper
+  end and show "~". Anything else ("a few") is kept as text, never guessed. A
+  unit said inside the quantity ("3 bundles") is used when the unit field is
+  empty.
+- **Ordered tracking:** `materialOrders` records which note lines an order
+  covered (`${noteId}#${lineKey}`). Those drop off "To order", and a later
+  note asking for more of the same item shows up again. `markOrdered` takes
+  the key and quantity the user saw and refuses if the list changed since.
+  Undo deletes the order. Any office user can mark orders (not owner-only).
+- **Sending:** done in the browser, so nothing leaves Echo on its own. Copy
+  as text, the phone's share sheet, a `mailto:` draft, or a CSV download
+  (cells that could run as spreadsheet formulas are neutralized). Only
+  ticked lines are included.
+- Archived notes are excluded. The overview counts notes with materials that
+  aren't linked to a job, so they can be linked and included.
+- Known limit: if an AI re-run changes the quantity on a note line that was
+  already ordered, that line stays covered.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

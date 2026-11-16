@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { Pencil } from "lucide-react";
@@ -226,6 +227,14 @@ export function NoteAiPanel({
                 </li>
               ))}
             </ul>
+            {job ? (
+              <Link
+                href={`/dashboard/materials?job=${job.id}`}
+                className="mt-2 inline-block text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                Open the order list for {job.title} →
+              </Link>
+            ) : null}
           </div>
         ) : null}
 
