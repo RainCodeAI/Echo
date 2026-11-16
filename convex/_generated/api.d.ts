@@ -19,6 +19,7 @@ import type * as users from "../users.js";
 import type * as voiceNotes from "../voiceNotes.js";
 import type * as lib_configCheck from "../lib/configCheck.js";
 import type * as lib_email from "../lib/email.js";
+import type * as lib_fieldJobs from "../lib/fieldJobs.js";
 import type * as lib_fieldSession from "../lib/fieldSession.js";
 import type * as lib_noteEdits from "../lib/noteEdits.js";
 import type * as lib_openaiCalls from "../lib/openaiCalls.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   voiceNotes: typeof voiceNotes;
   "lib/configCheck": typeof lib_configCheck;
   "lib/email": typeof lib_email;
+  "lib/fieldJobs": typeof lib_fieldJobs;
   "lib/fieldSession": typeof lib_fieldSession;
   "lib/noteEdits": typeof lib_noteEdits;
   "lib/openaiCalls": typeof lib_openaiCalls;

@@ -120,3 +120,20 @@ describe("buildStructureUserPrompt", () => {
     expect(prompt).not.toContain("on-device notes");
   });
 });
+
+describe("buildStructureUserPrompt job context", () => {
+  it("includes the linked job and its site when present", () => {
+    const prompt = buildStructureUserPrompt({
+      companyName: "Acme",
+      transcript: "need shingles for the north valley",
+      job: { title: "Ramirez reroof", address: "412 Oak St" },
+    });
+    expect(prompt).toContain("Linked job: Ramirez reroof (site: 412 Oak St)");
+  });
+
+  it("omits the line when no job is linked", () => {
+    expect(
+      buildStructureUserPrompt({ companyName: "Acme", transcript: "hello there team", job: null }),
+    ).not.toContain("Linked job");
+  });
+});

@@ -34,6 +34,12 @@ import {
   useFieldQueue,
 } from "@/components/entry/field-queue-provider";
 import { FieldQueueStatus } from "@/components/entry/field-queue-status";
+import { FieldJobPicker } from "@/components/entry/field-job-picker";
+import {
+  lastPickedJob,
+  rememberPickedJob,
+  type PickedJob,
+} from "@/lib/offline/job-cache";
 
 export type VerifiedFieldMember = {
   id: Id<"teamMembers">;
@@ -78,6 +84,10 @@ export function FieldRecorder({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [restoredDraft, setRestoredDraft] = useState(false);
+  // Preselect the job this worker picked last this shift (client-only render).
+  const [job, setJob] = useState<PickedJob | null>(() =>
+    lastPickedJob(companyId, member.id),
+  );
   const [audioMimeType, setAudioMimeType] = useState<string | undefined>();
   const [photos, setPhotos] = useState<AttachedPhoto[]>([]);
   /** clientUploadId of the note just submitted (its send status is shown). */
@@ -120,6 +130,9 @@ export function FieldRecorder({
       setAudioMimeType(draft.audioMimeType);
       setElapsedMs(draft.audioDurationMs ?? 0);
       setUrgent(draft.workerFlaggedUrgent);
+      if (draft.jobId) {
+        setJob({ id: draft.jobId, title: draft.jobTitle ?? "Selected job" });
+      }
       setPhotos(
         draft.photos.map((p) => {
           const file = new File([p.blob], p.name, { type: p.mimeType ?? p.blob.type });
@@ -154,6 +167,8 @@ export function FieldRecorder({
         workerFlaggedUrgent: urgent,
         recordedAt: startedAtRef.current || Date.now(),
         savedAt: Date.now(),
+        jobId: job?.id,
+        jobTitle: job?.title,
       });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -165,6 +180,7 @@ export function FieldRecorder({
     elapsedMs,
     photos,
     urgent,
+    job,
     draftStorageKey,
   ]);
 
@@ -403,6 +419,8 @@ export function FieldRecorder({
       })),
       workerFlaggedUrgent: urgent,
       recordedAt: startedAtRef.current || Date.now(),
+      jobId: job?.id,
+      jobTitle: job?.title,
       now: Date.now(),
     });
 
@@ -484,6 +502,9 @@ export function FieldRecorder({
                 ? `Your field note is on ${companyName}'s dashboard. AI structuring will enrich it next.`
                 : "It will send to the office automatically when you have signal — even if you close this page and come back later."}
           </p>
+          {job && !failed ? (
+            <p className="text-xs text-muted-foreground">Job: {job.title}</p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button type="button" onClick={resetForAnother}>
@@ -509,6 +530,18 @@ export function FieldRecorder({
           Record a voice note from the job site.
         </p>
       </div>
+
+      <FieldJobPicker
+        companyId={companyId}
+        teamMemberId={member.id}
+        verificationToken={member.verificationToken}
+        value={job}
+        disabled={phase === "submitting"}
+        onChange={(picked) => {
+          setJob(picked);
+          rememberPickedJob(companyId, member.id, picked);
+        }}
+      />
 
       {/* Record control */}
       <div className="flex flex-col items-center gap-3 py-2">

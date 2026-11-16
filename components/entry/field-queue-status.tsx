@@ -98,7 +98,8 @@ export function FieldQueueStatus() {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium">
-                      {item.memberName} ·{" "}
+                      {item.memberName}
+                      {item.jobTitle ? ` · ${item.jobTitle}` : ""} ·{" "}
                       {new Date(item.recordedAt).toLocaleTimeString([], {
                         hour: "numeric",
                         minute: "2-digit",
