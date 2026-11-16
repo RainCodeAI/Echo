@@ -165,7 +165,8 @@ _The #1 trust killer in field software is losing someone's work._
       crew** (e.g. a starter and a pro tier), validated with pilots first.
 - [ ] Self-serve onboarding: printable QR poster or truck sticker, sample note,
       first-crew-member wizard.
-- [ ] Office user management: remove member, transfer ownership.
+- [x] Office user management: remove member (their open tasks become
+      unassigned), leave workspace, transfer ownership.
 - [x] Data export (CSV + media zip) and workspace deletion; recording-consent
       language; privacy policy/ToS. Includes per-note permanent delete, owner
       terms acceptance and a once-per-crew-member recording notice (both
