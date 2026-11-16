@@ -123,10 +123,10 @@ _Code side done; account setup follows [DEPLOY.md](DEPLOY.md)._
 
 ### Phase 1 — "Never lose a memo" (≈2–3 weeks)
 _The #1 trust killer in field software is losing someone's work._
-- [ ] **Offline capture queue**: IndexedDB draft + upload queue, retried on
-      reconnect. `clientUploadId` idempotency already exists server-side.
-      The draft survives reloads and dead zones.
-- [ ] Persist the field session per device (12h token) so a reload doesn't
+- [x] **Offline capture queue**: IndexedDB draft + upload queue, retried on
+      reconnect / page load / timer; idempotent via `clientUploadId`. Drafts
+      survive reloads. See ARCHITECTURE.md §9.
+- [x] Persist the field session per device (12h token) so a reload doesn't
       force a PIN re-entry mid-shift.
 - [ ] Owner can edit the transcript and AI fields; mark "owner-set" so AI
       retries don't clobber them (fixes known issue above).

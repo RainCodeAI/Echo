@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import {
   AlertTriangle,
   CheckCircle2,
+  CloudOff,
   ImagePlus,
   Loader2,
   Mic,
@@ -13,7 +13,6 @@ import {
   X,
 } from "lucide-react";
 
-import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,6 +22,18 @@ import {
   pickRecorderMimeType,
   type BrowserSpeechRecognition,
 } from "@/lib/speech";
+import { createQueuedNote } from "@/lib/offline/queue";
+import {
+  deleteDraft,
+  draftKey,
+  loadDraft,
+  saveDraft,
+} from "@/lib/offline/drafts";
+import {
+  requestPersistentStorage,
+  useFieldQueue,
+} from "@/components/entry/field-queue-provider";
+import { FieldQueueStatus } from "@/components/entry/field-queue-status";
 
 export type VerifiedFieldMember = {
   id: Id<"teamMembers">;
@@ -55,8 +66,8 @@ export function FieldRecorder({
   member,
   onSwitchUser,
 }: FieldRecorderProps) {
-  const generateUploadUrl = useMutation(api.voiceNotes.generateFieldUploadUrl);
-  const createNote = useMutation(api.voiceNotes.createFromField);
+  const { runner, snapshot } = useFieldQueue();
+  const draftStorageKey = draftKey(companyId, member.id);
 
   const [phase, setPhase] = useState<Phase>("ready");
   const [transcript, setTranscript] = useState("");
@@ -66,9 +77,13 @@ export function FieldRecorder({
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [restoredDraft, setRestoredDraft] = useState(false);
   const [audioMimeType, setAudioMimeType] = useState<string | undefined>();
   const [photos, setPhotos] = useState<AttachedPhoto[]>([]);
-  const [submittedId, setSubmittedId] = useState<string | null>(null);
+  /** clientUploadId of the note just submitted (its send status is shown). */
+  const [submittedUploadId, setSubmittedUploadId] = useState<string | null>(
+    null,
+  );
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -84,14 +99,74 @@ export function FieldRecorder({
       ? crypto.randomUUID()
       : `upload-${Date.now()}`,
   );
-  // Cache successful uploads so a retry after a failed submit reuses the same
-  // storage blobs instead of orphaning a fresh copy each attempt.
-  const audioUploadIdRef = useRef<Id<"_storage"> | null>(null);
-  const photoUploadIdsRef = useRef<Map<string, Id<"_storage">>>(new Map());
 
   useEffect(() => {
     setSpeechSupported(!!getSpeechRecognitionConstructor());
   }, []);
+
+  // Restore an unsubmitted recording (reload, crash, phone killed the tab).
+  useEffect(() => {
+    let cancelled = false;
+    void loadDraft(draftStorageKey).then((draft) => {
+      if (cancelled || !draft) return;
+      if (!draft.audio && !draft.transcript.trim() && draft.photos.length === 0) {
+        return;
+      }
+      clientUploadIdRef.current = draft.clientUploadId;
+      startedAtRef.current = draft.recordedAt;
+      finalTranscriptRef.current = draft.transcript;
+      setTranscript(draft.transcript);
+      setAudioBlob(draft.audio ?? null);
+      setAudioMimeType(draft.audioMimeType);
+      setElapsedMs(draft.audioDurationMs ?? 0);
+      setUrgent(draft.workerFlaggedUrgent);
+      setPhotos(
+        draft.photos.map((p) => {
+          const file = new File([p.blob], p.name, { type: p.mimeType ?? p.blob.type });
+          return { file, url: URL.createObjectURL(file) };
+        }),
+      );
+      setRestoredDraft(true);
+      setPhase((current) => (current === "ready" ? "review" : current));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftStorageKey]);
+
+  // Save the unsubmitted recording to the phone whenever it changes.
+  useEffect(() => {
+    if (phase !== "review") return;
+    if (!audioBlob && !transcript.trim() && photos.length === 0) return;
+    const timer = window.setTimeout(() => {
+      void saveDraft({
+        key: draftStorageKey,
+        clientUploadId: clientUploadIdRef.current,
+        transcript,
+        audio: audioBlob ?? undefined,
+        audioMimeType,
+        audioDurationMs: elapsedMs || undefined,
+        photos: photos.map((p) => ({
+          blob: p.file,
+          name: p.file.name,
+          mimeType: p.file.type || undefined,
+        })),
+        workerFlaggedUrgent: urgent,
+        recordedAt: startedAtRef.current || Date.now(),
+        savedAt: Date.now(),
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [
+    phase,
+    transcript,
+    audioBlob,
+    audioMimeType,
+    elapsedMs,
+    photos,
+    urgent,
+    draftStorageKey,
+  ]);
 
   const stopStreams = useCallback(() => {
     if (tickRef.current) {
@@ -161,7 +236,6 @@ export function FieldRecorder({
       const removed = current[index];
       if (removed) {
         URL.revokeObjectURL(removed.url);
-        photoUploadIdsRef.current.delete(removed.url);
       }
       return next;
     });
@@ -172,7 +246,6 @@ export function FieldRecorder({
       current.forEach((p) => URL.revokeObjectURL(p.url));
       return [];
     });
-    photoUploadIdsRef.current.clear();
   }
 
   async function startRecording() {
@@ -181,8 +254,7 @@ export function FieldRecorder({
     setInterim("");
     setAudioBlob(null);
     finalTranscriptRef.current = "";
-    // New recording → the previously uploaded audio (if any) no longer applies.
-    audioUploadIdRef.current = null;
+    setRestoredDraft(false);
     clientUploadIdRef.current =
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
@@ -314,82 +386,37 @@ export function FieldRecorder({
     setPhase("submitting");
     setError(null);
 
+    // Save to the phone first; sending happens in the background and keeps
+    // retrying through dead zones, reloads and expired sessions.
+    const item = createQueuedNote({
+      clientUploadId: clientUploadIdRef.current,
+      companyId,
+      teamMemberId: member.id,
+      memberName: member.name,
+      transcript: text,
+      audio: audioBlob,
+      audioMimeType,
+      audioDurationMs: elapsedMs || undefined,
+      photos: photos.map((p) => ({
+        blob: p.file,
+        mimeType: p.file.type || undefined,
+      })),
+      workerFlaggedUrgent: urgent,
+      recordedAt: startedAtRef.current || Date.now(),
+      now: Date.now(),
+    });
+
     try {
-      let audioStorageId = audioUploadIdRef.current ?? undefined;
-      if (audioBlob && audioBlob.size > 0 && !audioStorageId) {
-        const uploadUrl = await generateUploadUrl({
-          companyId,
-          teamMemberId: member.id,
-          verificationToken: member.verificationToken,
-        });
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": audioMimeType || audioBlob.type || "audio/webm",
-          },
-          body: audioBlob,
-        });
-        if (!response.ok) {
-          throw new Error("Audio upload failed. Check your connection and retry.");
-        }
-        const json = (await response.json()) as { storageId: Id<"_storage"> };
-        audioStorageId = json.storageId;
-        audioUploadIdRef.current = json.storageId;
-      }
-
-      const uploadedPhotos: {
-        storageId: Id<"_storage">;
-        mimeType?: string;
-      }[] = [];
-      for (const photo of photos) {
-        let storageId = photoUploadIdsRef.current.get(photo.url);
-        if (!storageId) {
-          const uploadUrl = await generateUploadUrl({
-            companyId,
-            teamMemberId: member.id,
-            verificationToken: member.verificationToken,
-          });
-          const response = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": photo.file.type || "image/jpeg" },
-            body: photo.file,
-          });
-          if (!response.ok) {
-            throw new Error(
-              "Photo upload failed. Check your connection and retry.",
-            );
-          }
-          const json = (await response.json()) as { storageId: Id<"_storage"> };
-          storageId = json.storageId;
-          photoUploadIdsRef.current.set(photo.url, storageId);
-        }
-        uploadedPhotos.push({
-          storageId,
-          mimeType: photo.file.type || undefined,
-        });
-      }
-
-      const noteId = await createNote({
-        companyId,
-        teamMemberId: member.id,
-        verificationToken: member.verificationToken,
-        rawTranscript: text,
-        clientUploadId: clientUploadIdRef.current,
-        audioStorageId,
-        audioMimeType: audioStorageId ? audioMimeType : undefined,
-        audioDurationMs: elapsedMs || undefined,
-        workerFlaggedUrgent: urgent,
-        recordedAt: startedAtRef.current || Date.now(),
-        photos: uploadedPhotos.length ? uploadedPhotos : undefined,
-      });
-
-      setSubmittedId(noteId);
+      requestPersistentStorage();
+      await runner.enqueue(item);
+      await deleteDraft(draftStorageKey);
+      setSubmittedUploadId(item.clientUploadId);
       setPhase("done");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Submit failed. Your draft is still here — try again.",
+          : "Couldn't save the note on this phone. Your draft is still here — try again.",
       );
       setPhase("review");
     }
@@ -402,31 +429,61 @@ export function FieldRecorder({
     setInterim("");
     setAudioBlob(null);
     clearPhotos();
-    audioUploadIdRef.current = null;
     setUrgent(false);
     setError(null);
     setElapsedMs(0);
-    setSubmittedId(null);
+    setSubmittedUploadId(null);
+    setRestoredDraft(false);
+    startedAtRef.current = 0;
     finalTranscriptRef.current = "";
+    clientUploadIdRef.current =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `upload-${Date.now()}`;
   }
 
   if (phase === "done") {
+    const sentNoteId = submittedUploadId
+      ? snapshot.sent[submittedUploadId]
+      : undefined;
+    const queued = snapshot.items.find(
+      (i) => i.clientUploadId === submittedUploadId,
+    );
+    const failed = queued?.status === "failed";
     return (
-      <div className="space-y-6 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
-          <CheckCircle2 className="h-9 w-9" />
+      <div className="space-y-6 text-center" data-testid="field-done">
+        <div
+          className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${
+            failed
+              ? "bg-destructive/15 text-destructive"
+              : sentNoteId
+                ? "bg-primary/15 text-primary"
+                : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {failed ? (
+            <AlertTriangle className="h-9 w-9" />
+          ) : sentNoteId ? (
+            <CheckCircle2 className="h-9 w-9" />
+          ) : (
+            <CloudOff className="h-9 w-9" />
+          )}
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-semibold">Saved, {member.name}</h2>
+          <h2 className="text-2xl font-semibold" data-testid="field-done-title">
+            {failed
+              ? "Couldn't send this note"
+              : sentNoteId
+                ? `Sent, ${member.name}`
+                : "Saved on this phone"}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Your field note is on {companyName}&apos;s dashboard. AI structuring
-            will enrich it next.
+            {failed
+              ? queued?.lastError
+              : sentNoteId
+                ? `Your field note is on ${companyName}'s dashboard. AI structuring will enrich it next.`
+                : "It will send to the office automatically when you have signal — even if you close this page and come back later."}
           </p>
-          {submittedId ? (
-            <p className="font-mono text-[10px] text-muted-foreground">
-              {submittedId}
-            </p>
-          ) : null}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button type="button" onClick={resetForAnother}>
@@ -435,6 +492,9 @@ export function FieldRecorder({
           <Button type="button" variant="outline" onClick={onSwitchUser}>
             Switch user
           </Button>
+        </div>
+        <div className="text-left">
+          <FieldQueueStatus />
         </div>
       </div>
     );
@@ -486,6 +546,12 @@ export function FieldRecorder({
               : "Tap the green button and speak"}
         </p>
       </div>
+
+      {restoredDraft && phase === "review" ? (
+        <p className="rounded-md bg-primary/10 px-3 py-2 text-sm text-primary" data-testid="draft-restored">
+          Restored your unsent recording. Review it, then submit.
+        </p>
+      ) : null}
 
       {/* Transcript */}
       <div className="space-y-2">
@@ -602,6 +668,8 @@ export function FieldRecorder({
           </p>
         </div>
       </label>
+
+      <FieldQueueStatus />
 
       {error ? (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
