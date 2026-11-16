@@ -65,6 +65,28 @@ export function evaluateConfig(env: Env): {
     killSwitch ? "ON — AI is disabled for all notes." : "Off.",
   );
 
+  const emailOk = !!(env.RESEND_API_KEY && env.ALERT_FROM_EMAIL);
+  add(
+    "Alert email (RESEND_API_KEY, ALERT_FROM_EMAIL)",
+    emailOk,
+    "recommended",
+    emailOk ? "Set." : "Not set — urgent alerts won't be emailed.",
+  );
+  const smsOk = !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM_NUMBER);
+  add(
+    "Alert SMS (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER)",
+    smsOk,
+    "recommended",
+    smsOk ? "Set." : "Not set — urgent alerts won't be texted.",
+  );
+  const appUrl = env.APP_URL ?? "";
+  add(
+    "APP_URL",
+    /^https:\/\/\S+$/.test(appUrl),
+    "recommended",
+    appUrl ? (appUrl.startsWith("https://") ? "Set." : "Must be an https:// URL.") : "Not set — alerts won't include a link to the note.",
+  );
+
   const cleanupOff = env.STORAGE_CLEANUP_DISABLED === "1";
   add(
     "STORAGE_CLEANUP_DISABLED",

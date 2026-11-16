@@ -504,6 +504,29 @@ Items marked ✅ are covered by integration tests in `tests/convex/`
 
 ---
 
+## 11a. Urgent alerts
+
+`convex/alerts.ts` (delivery) + `convex/lib/alerts.ts` (decision, formatting) +
+`convex/lib/alertProviders.ts` (Resend email, Twilio SMS; plain `fetch`).
+
+| Trigger | Scheduled from | When |
+| --- | --- | --- |
+| `ai_done` | `applyAiStructure` | AI finished and the note is crew-flagged or rated high/emergency |
+| `ai_failed` | `applyAiFailure` | AI failed on a crew-flagged note (alert uses the raw transcript) |
+| `fallback` | `createFromField` | 45s after a crew-flagged submit, in case AI is slow |
+
+- **One alert per note:** `claimNoteAlert` sets `voiceNotes.urgentAlertAt`
+  atomically; whichever trigger runs first sends, the rest no-op.
+- **Opt-in:** nothing sends unless `companies.notificationsEnabled`.
+  Recipients: `notificationEmail` (else the owner's sign-in email) and
+  `alertPhone` (E.164, normalised on save).
+- **Cost cap:** at most 20 alerted notes per company per hour; further ones
+  are logged as skipped.
+- **Log:** every attempt is a row in `alerts` (recipient masked), shown on the
+  note page. A channel without provider keys logs `not_configured` instead of
+  failing.
+- Settings → *Send test alert* (owner only) checks the setup end to end.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

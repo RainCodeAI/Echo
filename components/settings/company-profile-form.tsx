@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -29,6 +29,13 @@ export function CompanyProfileForm() {
   const [timezone, setTimezone] = useState("");
   const [notificationEmail, setNotificationEmail] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [alertPhone, setAlertPhone] = useState("");
+  const sendTestAlert = useAction(api.alerts.sendTestAlert);
+  const [testPending, setTestPending] = useState(false);
+  const [testResults, setTestResults] = useState<
+    { channel: string; recipient: string; status: string; detail: string | null }[] | null
+  >(null);
+  const [testError, setTestError] = useState<string | null>(null);
 
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -44,6 +51,7 @@ export function CompanyProfileForm() {
     setTimezone(company.timezone ?? "");
     setNotificationEmail(company.notificationEmail ?? "");
     setNotificationsEnabled(company.notificationsEnabled ?? false);
+    setAlertPhone(company.alertPhone ?? "");
   }, [company]);
 
   if (company === undefined) {
@@ -68,6 +76,7 @@ export function CompanyProfileForm() {
         email: email.trim(),
         timezone: timezone.trim(),
         notificationEmail: notificationEmail.trim(),
+        alertPhone: alertPhone.trim(),
         notificationsEnabled,
       });
       setMessage("Saved.");
@@ -146,13 +155,27 @@ export function CompanyProfileForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="notification-email">Notification email</Label>
+            <Label htmlFor="notification-email">Alert email</Label>
             <Input
               id="notification-email"
               type="email"
               value={notificationEmail}
               onChange={(e) => setNotificationEmail(e.target.value)}
               placeholder="alerts@acme.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              Blank = the owner&apos;s sign-in email.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="alert-phone">Alert mobile (texts)</Label>
+            <Input
+              id="alert-phone"
+              type="tel"
+              inputMode="tel"
+              value={alertPhone}
+              onChange={(e) => setAlertPhone(e.target.value)}
+              placeholder="(555) 123-4567"
             />
           </div>
         </div>
@@ -165,10 +188,11 @@ export function CompanyProfileForm() {
             onChange={(e) => setNotificationsEnabled(e.target.checked)}
           />
           <span className="text-sm">
-            <span className="font-medium">Enable notifications</span>
+            <span className="font-medium">Urgent alerts</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              Digests and urgent alerts to the notification email (delivery ships
-              later).
+              Text and/or email you within a minute when a crew member flags a
+              note urgent, or the AI rates it high or emergency. One alert per
+              note, at most 20 an hour.
             </span>
           </span>
         </label>
@@ -189,6 +213,65 @@ export function CompanyProfileForm() {
           ) : null}
           {error ? (
             <span className="text-sm text-destructive">{error}</span>
+          ) : null}
+        </div>
+
+        <div className="space-y-2 rounded-lg border px-3 py-3" data-testid="test-alert">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm">
+              <span className="font-medium">Check your alerts</span>
+              <span className="block text-xs text-muted-foreground">
+                Sends a test to the saved email and mobile. Save changes first.
+              </span>
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={testPending}
+              onClick={async () => {
+                setTestPending(true);
+                setTestError(null);
+                setTestResults(null);
+                try {
+                  setTestResults(await sendTestAlert({}));
+                } catch (err) {
+                  setTestError(err instanceof Error ? err.message : "Test failed.");
+                } finally {
+                  setTestPending(false);
+                }
+              }}
+            >
+              {testPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Send test alert
+            </Button>
+          </div>
+          {testError ? <p className="text-sm text-destructive">{testError}</p> : null}
+          {testResults ? (
+            <ul className="space-y-1 text-sm">
+              {testResults.map((r) => (
+                <li key={r.channel} className="flex flex-wrap gap-x-2">
+                  <span className="font-medium">
+                    {r.channel === "sms" ? "Text" : "Email"} to {r.recipient}:
+                  </span>
+                  <span
+                    className={
+                      r.status === "sent"
+                        ? "text-primary"
+                        : r.status === "not_configured"
+                          ? "text-amber-700"
+                          : "text-destructive"
+                    }
+                  >
+                    {r.status === "sent"
+                      ? "sent ✓"
+                      : r.status === "not_configured"
+                        ? "not set up on the server yet"
+                        : `failed — ${r.detail ?? "unknown error"}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
           ) : null}
         </div>
       </fieldset>

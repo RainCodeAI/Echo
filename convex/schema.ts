@@ -131,8 +131,11 @@ export default defineSchema({
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
-    /** Where owners receive digests / urgent alerts (future). */
+    /** Where urgent-note alerts are emailed (falls back to the owner's email). */
     notificationEmail: v.optional(v.string()),
+    /** Mobile number (E.164) for urgent-note SMS alerts. */
+    alertPhone: v.optional(v.string()),
+    /** Master switch for urgent alerts. Opt-in: off until the owner enables it. */
     notificationsEnabled: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
@@ -290,6 +293,9 @@ export default defineSchema({
     aiStartedAt: v.optional(v.number()),
     aiErrorMessage: v.optional(v.string()),
 
+    /** Set once when this note's urgent alert was claimed (one alert per note). */
+    urgentAlertAt: v.optional(v.number()),
+
     // --- Owner review ------------------------------------------------------
     ownerNote: v.optional(v.string()),
     /**
@@ -401,6 +407,29 @@ export default defineSchema({
     .index("by_company", ["companyId"])
     // Reference lookup for the orphaned-upload cleanup (convex/storageCleanup.ts).
     .index("by_storage", ["storageId"]),
+
+  /**
+   * Delivery log for urgent-note alerts (one row per channel per attempt).
+   * Recipients are stored masked. `noteId` is absent for settings test alerts.
+   */
+  alerts: defineTable({
+    companyId: v.id("companies"),
+    noteId: v.optional(v.id("voiceNotes")),
+    channel: v.union(v.literal("email"), v.literal("sms")),
+    recipient: v.string(),
+    status: v.union(
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("not_configured"),
+      v.literal("skipped"),
+    ),
+    detail: v.optional(v.string()),
+    providerId: v.optional(v.string()),
+    isTest: v.optional(v.boolean()),
+    createdAt: v.number(),
+  })
+    .index("by_company_and_created", ["companyId", "createdAt"])
+    .index("by_note", ["noteId"]),
 
   /**
    * Field upload-URL rate limit, one row per crew member (rolling window).
