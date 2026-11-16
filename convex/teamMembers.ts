@@ -138,6 +138,8 @@ export const update = mutation({
         throw new Error(`PIN must be exactly ${pinLength} digits.`);
       }
       patch.pinLength = pinLength;
+      // Sign out sessions opened with the old PIN (it may have leaked).
+      patch.pinChangedAt = Date.now();
       const pinHash = await hashPin(user.companyId, args.pin);
       if (willBeActive) {
         await assertPinAvailable(ctx, user.companyId, pinHash, args.memberId);

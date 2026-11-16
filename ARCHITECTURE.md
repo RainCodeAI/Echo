@@ -823,6 +823,11 @@ Logic is in `convex/lib/onboarding.ts` and `convex/onboarding.ts`. The UI is
   - The entry page reads the length from `publicProfile`; the keypad shows
     that many dots and auto-submits at that length.
   - Lockout escalation is unchanged. With 6 digits the space is 1,000,000.
+  - **Sessions end too:** `requireFieldSession` refuses a token whose
+    member's PIN length no longer matches the company's, or whose PIN was
+    reset after the token was issued (`teamMembers.pinChangedAt`). The error
+    contains "Re-enter your PIN", so the offline queue holds notes and asks
+    for the new PIN. Name and role edits don't end sessions.
 - **Note search** (`voiceNotes.listForCompany` with `search`):
   - Uses the `search_ai_title`, `search_summary` and `search_transcript`
     search indexes, filtered by company (and status), up to 100 hits each,

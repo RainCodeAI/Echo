@@ -945,6 +945,8 @@ export const getInternal = internalQuery({
     }
 
     const company = await ctx.db.get(note.companyId);
+    // Workspace gone or being deleted: don't spend AI on it.
+    if (!company || company.deletionRequestedAt) return null;
 
     let job: { title: string; address: string | null } | null = null;
     if (note.jobId) {
