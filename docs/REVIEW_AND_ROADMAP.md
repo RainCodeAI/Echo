@@ -163,8 +163,9 @@ _The #1 trust killer in field software is losing someone's work._
 ### Phase 3 — "Sellable" (≈3–4 weeks)
 - [ ] Stripe billing. Suggested starting point: **flat per company, unlimited
       crew** (e.g. a starter and a pro tier), validated with pilots first.
-- [ ] Self-serve onboarding: printable QR poster or truck sticker, sample note,
-      first-crew-member wizard.
+- [x] Self-serve onboarding: printable QR poster or truck sticker (English and
+      Spanish), sample note, and a getting-started checklist that walks the
+      owner from profile to first crew note.
 - [x] Office user management: remove member (their open tasks become
       unassigned), leave workspace, transfer ownership.
 - [x] Data export (CSV + media zip) and workspace deletion; recording-consent

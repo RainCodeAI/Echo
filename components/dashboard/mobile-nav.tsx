@@ -26,7 +26,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex border-t bg-card md:hidden">
+    <nav className="flex border-t bg-card md:hidden print:hidden">
       {ITEMS.map(({ href, label, icon: Icon, exact }) => {
         const active = exact
           ? pathname === href

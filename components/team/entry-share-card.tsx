@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { Check, Copy, Download, ExternalLink, QrCode } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, Printer, QrCode } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -132,6 +132,12 @@ export function EntryShareCard({
                 >
                   <Download className="h-4 w-4" />
                   Download QR
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/dashboard/poster">
+                    <Printer className="h-4 w-4" />
+                    Print poster
+                  </Link>
                 </Button>
                 <Button asChild size="sm" variant="outline">
                   <Link href={entryPath} target="_blank" rel="noreferrer">

@@ -168,6 +168,9 @@ export default defineSchema({
     termsVersion: v.optional(v.string()),
     termsAcceptedAt: v.optional(v.number()),
     termsAcceptedBy: v.optional(v.id("users")),
+    /** Getting-started checklist: crew link shared / poster printed; checklist hidden. */
+    onboardingSharedAt: v.optional(v.number()),
+    onboardingDismissedAt: v.optional(v.number()),
     /**
      * Monthly AI budget in USD for this company (ops-only override of
      * AI_MONTHLY_BUDGET_USD; 0 pauses AI for this company).
@@ -309,6 +312,8 @@ export default defineSchema({
      * Unique enough within a company; lookups use `by_client_upload_id`.
      */
     clientUploadId: v.optional(v.string()),
+    /** Example note created from the getting-started checklist (not real field data). */
+    isSample: v.optional(v.boolean()),
     /** Worker tapped "urgent" at capture time (before AI). */
     workerFlaggedUrgent: v.optional(v.boolean()),
     /** Optional free-text crew tag if not using user.crewLabel alone. */

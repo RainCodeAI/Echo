@@ -773,6 +773,40 @@ and the UI is `components/team/office-member-actions.tsx` on the Team page.
   user id. Name lookups already tolerate a missing user, so they show no name.
 - There is no audit log of who removed whom yet (Phase 3 follow-up).
 
+## 11j. Self-serve onboarding
+
+Logic is in `convex/lib/onboarding.ts` and `convex/onboarding.ts`. The UI is
+`components/onboarding/*` plus `/dashboard/poster`.
+
+- **Getting-started checklist** (dashboard home, owner only). Each step is
+  derived from real data, not ticked by hand:
+  - **Profile:** the company has been renamed from "X's Company" and has a
+    primary trade.
+  - **Crew:** at least one active crew member.
+  - **Share:** `onboardingSharedAt`, set when the owner prints the poster or
+    copies the crew link.
+  - **First note:** a non-sample note recorded by a crew member.
+  - **Urgent alerts:** optional.
+
+  Only the next required step shows its buttons, which link to the place
+  that does it (settings, the add-crew dialog, the poster, the crew page).
+  The owner can hide the checklist (`onboardingDismissedAt`), and it
+  disappears once the required steps are done.
+- **Crew poster** (`/dashboard/poster`): US Letter poster or a 4×4 in truck
+  sticker.
+  - Black-on-white QR code for the crew link, plus three steps in English and
+    Spanish.
+  - Print CSS hides the dashboard frame, and `@page` sets the paper size; it
+    prints on one page.
+  - Printing marks the share step done. Also linked from the Team page's
+    share card.
+- **Sample note** (`createSampleNote`, owner only, one per workspace):
+  - A realistic Spanish memo with an English summary, materials and action
+    items, flagged `isSample`.
+  - No AI call and no alerts, and it isn't counted in the daily digest or
+    toward the first-note step.
+  - Its note page says it's a sample. It's deleted like any note.
+
 ## 12. Observability and operations
 
 MVP-friendly practices (align with Quill/Relay where useful):

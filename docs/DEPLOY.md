@@ -225,6 +225,10 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
       minute with the AI summary, and the note page shows "Urgent alert by text…".
 - [ ] **Digest:** tick *Daily digest email* (the timezone fills in), save, then
       *Send digest now*. The email arrives, and its links open the notes.
+- [ ] **Onboarding:** a brand-new owner sees "Get set up 0 of 4". Print the
+      poster (one page, the QR scans on a phone), try the sample note, and add
+      a crew member; the checklist moves along and goes away after the first
+      real crew note.
 - [ ] **Office users:** from Team, make the invited member the owner (you
       become a member), have them make you owner again, then remove them.
       They lose access on their next click, and their action items show as

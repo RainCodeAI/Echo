@@ -74,7 +74,8 @@ export const payload = internalQuery({
         q.eq("companyId", companyId).gt("createdAt", now - DIGEST_PERIOD_MS),
       )
       .order("desc")
-      .take(MAX_PERIOD_NOTES);
+      .take(MAX_PERIOD_NOTES)
+      .then((rows) => rows.filter((n) => !n.isSample));
     const [ready, processing] = await Promise.all(
       (["ready", "processing"] as const).map((status) =>
         ctx.db
@@ -82,7 +83,8 @@ export const payload = internalQuery({
           .withIndex("by_company_and_status", (q) =>
             q.eq("companyId", companyId).eq("status", status),
           )
-          .take(1000),
+          .take(1000)
+          .then((rows) => rows.filter((n) => !n.isSample)),
       ),
     );
 

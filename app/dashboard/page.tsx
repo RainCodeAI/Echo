@@ -24,6 +24,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEntryUrl } from "@/hooks/use-entry-url";
 import { AiUsageBanner } from "@/components/settings/ai-usage-card";
+import { GettingStarted } from "@/components/onboarding/getting-started";
 
 /**
  * Owner overview — pulse counts + shortcuts into notes and crew entry.
@@ -44,6 +45,8 @@ export default function DashboardOverviewPage() {
           and keep jobs moving.
         </p>
       </div>
+
+      <GettingStarted />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
