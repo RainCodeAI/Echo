@@ -24,6 +24,12 @@ const MAX_OWNER_NOTE_CHARS = 4_000;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 /** Owner-triggered AI retries are capped to avoid runaway cost on a bad note. */
 const MAX_AI_ATTEMPTS = 5;
+/**
+ * An AI run that has been pending/processing longer than this is treated as
+ * dead (Convex actions time out at 10 minutes; a crashed action never writes
+ * a failure). Owners may retry it instead of being blocked forever.
+ */
+const AI_STALE_MS = 12 * 60 * 1000;
 /** Photo attachment limits per note. */
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -120,9 +126,12 @@ export const createFromField = mutation({
     }
 
     // Validate photo attachments before creating the note so nothing dangles.
+    // SECURITY: do not delete blobs here. Storage ids are client-supplied and
+    // could point at another note's audio (which is larger than the photo
+    // cap), so deleting "oversized photos" would let a crafted request
+    // destroy existing recordings. Orphaned uploads are a cleanup-job concern.
     const photos = args.photos ?? [];
     if (photos.length > MAX_PHOTOS) {
-      await Promise.all(photos.map((p) => ctx.storage.delete(p.storageId)));
       throw new Error(`Attach at most ${MAX_PHOTOS} photos.`);
     }
     for (const p of photos) {
@@ -131,7 +140,6 @@ export const createFromField = mutation({
         throw new Error("A photo upload was not found. Please re-attach.");
       }
       if (meta.size > MAX_PHOTO_BYTES) {
-        await ctx.storage.delete(p.storageId);
         throw new Error(
           `A photo is too large (max ${Math.round(
             MAX_PHOTO_BYTES / (1024 * 1024),
@@ -153,6 +161,7 @@ export const createFromField = mutation({
       status: "ready",
       rawTranscript: transcript,
       transcriptSource: transcript ? "client" : undefined,
+      deviceTranscript: transcript || undefined,
       audioStorageId: args.audioStorageId,
       audioMimeType: args.audioMimeType,
       audioDurationMs: args.audioDurationMs,
@@ -160,6 +169,7 @@ export const createFromField = mutation({
       workerFlaggedUrgent: args.workerFlaggedUrgent ?? false,
       recordedAt,
       aiStatus: "pending",
+      aiStartedAt: now,
       urgency: args.workerFlaggedUrgent ? "high" : "medium",
       createdAt: now,
       updatedAt: now,
@@ -635,18 +645,26 @@ export const requestAiRetry = mutation({
   args: { noteId: v.id("voiceNotes") },
   handler: async (ctx, { noteId }) => {
     const { note } = await requireOwnedNote(ctx, noteId);
-    if (note.aiStatus === "processing") {
+    const now = Date.now();
+    // Block while a run is genuinely in flight (both queued and running —
+    // checking only "processing" let a double-click schedule two paid runs),
+    // but let owners recover a run that died without reporting back.
+    const inFlight =
+      note.aiStatus === "pending" || note.aiStatus === "processing";
+    const startedAt = note.aiStartedAt ?? note.updatedAt;
+    if (inFlight && now - startedAt < AI_STALE_MS) {
       throw new Error("AI is already running on this note — give it a moment.");
     }
     if ((note.aiGenerationAttempts ?? 0) >= MAX_AI_ATTEMPTS) {
       throw new Error(
-        "This note has hit the AI retry limit. Edit the transcript before retrying.",
+        "This note has hit the AI retry limit. The transcript and audio are still saved for manual review.",
       );
     }
     await ctx.db.patch(noteId, {
       aiStatus: "pending",
+      aiStartedAt: now,
       aiErrorMessage: undefined,
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
     await ctx.scheduler.runAfter(0, internal.ai.processNoteInternal, {
       noteId,
@@ -688,6 +706,7 @@ export const markAiProcessing = internalMutation({
     const attempts = (note.aiGenerationAttempts ?? 0) + 1;
     await ctx.db.patch(noteId, {
       aiStatus: "processing",
+      aiStartedAt: Date.now(),
       aiGenerationAttempts: attempts,
       aiErrorMessage: undefined,
       updatedAt: Date.now(),

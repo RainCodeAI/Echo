@@ -37,8 +37,18 @@ describe("field verification token", () => {
     expect(await verifyFieldToken(parts.join(":"))).toBeNull();
   });
 
+  it("accepts a token from earlier in the shift (regression: 15-min TTL lost recordings)", async () => {
+    const issuedAt = Date.now() - 45 * 60 * 1000;
+    const token = await buildFieldVerificationToken(
+      companyId,
+      teamMemberId,
+      issuedAt,
+    );
+    expect(await verifyFieldToken(token)).not.toBeNull();
+  });
+
   it("rejects an expired token (older than the TTL)", async () => {
-    const issuedAt = Date.now() - 16 * 60 * 1000;
+    const issuedAt = Date.now() - 13 * 60 * 60 * 1000;
     const token = await buildFieldVerificationToken(
       companyId,
       teamMemberId,

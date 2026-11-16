@@ -250,6 +250,12 @@ export default defineSchema({
      */
     rawTranscript: v.string(),
     transcriptSource: v.optional(transcriptSourceValidator),
+    /**
+     * What the phone's live speech recognition produced (plus any typed
+     * edits by the worker). Kept separately once server transcription
+     * replaces `rawTranscript`, so typed corrections are never lost.
+     */
+    deviceTranscript: v.optional(v.string()),
     /** Convex file storage id for the audio blob. */
     audioStorageId: v.optional(v.id("_storage")),
     audioMimeType: v.optional(v.string()),
@@ -280,6 +286,8 @@ export default defineSchema({
     aiConfidence: v.optional(v.number()),
     aiProcessedAt: v.optional(v.number()),
     aiGenerationAttempts: v.optional(v.number()),
+    /** When the current AI run was queued/started — used to detect stuck runs. */
+    aiStartedAt: v.optional(v.number()),
     aiErrorMessage: v.optional(v.string()),
 
     // --- Owner review ------------------------------------------------------
@@ -347,6 +355,8 @@ export default defineSchema({
     windowStartedAt: v.number(),
     /** When set and in the future, verifyPin is locked out. */
     lockedUntil: v.optional(v.number()),
+    /** Lockouts since the last successful PIN — drives escalating lock length. */
+    consecutiveLockouts: v.optional(v.number()),
     updatedAt: v.number(),
   }).index("by_company", ["companyId"]),
 

@@ -4,30 +4,35 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import OpenAI from "openai";
+import { sanitizeStructuredNote, URGENCY_VALUES } from "./lib/prompts";
 import {
-  STRUCTURE_NOTE_JSON_SCHEMA,
-  STRUCTURE_NOTE_SYSTEM_PROMPT,
-  buildStructureUserPrompt,
-  sanitizeStructuredNote,
-  type StructuredNoteModel,
-  URGENCY_VALUES,
-} from "./lib/prompts";
+  DEFAULT_STRUCTURE_MODEL,
+  DEFAULT_TRANSCRIBE_MODEL,
+  requestStructuredNote,
+  transcribeAudio,
+} from "./lib/openaiCalls";
 
 /**
  * OpenAI-backed enrichment for Echo voice notes.
  *
  * Pipeline per note:
- *  1. Optionally Whisper-transcribe when transcript is weak/empty and audio exists
+ *  1. Server-transcribe (Whisper) whenever audio exists. Browser speech
+ *     recognition is a live preview only — it is unreliable on job sites and
+ *     on iOS — so the server transcript becomes the primary text. Whatever
+ *     the phone captured (incl. typed corrections) is kept as
+ *     `deviceTranscript` and passed to the model as supporting context.
  *  2. Structure transcript into materials / actions / urgency / summary
  *
  * Requires on the Convex deployment:
  *   npx convex env set OPENAI_API_KEY sk-...
  * Optional:
  *   npx convex env set OPENAI_MODEL gpt-4o-mini
+ *   npx convex env set OPENAI_TRANSCRIBE_MODEL whisper-1   (or gpt-4o-transcribe)
  */
 
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-const STRUCTURE_MAX_TOKENS = 900;
+const MODEL = process.env.OPENAI_MODEL || DEFAULT_STRUCTURE_MODEL;
+const TRANSCRIBE_MODEL =
+  process.env.OPENAI_TRANSCRIBE_MODEL || DEFAULT_TRANSCRIBE_MODEL;
 const MIN_TRANSCRIPT_CHARS = 12;
 
 function killSwitchOn(): boolean {
@@ -40,15 +45,6 @@ function getClient(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   return new OpenAI({ apiKey });
-}
-
-function mimeToExtension(mime?: string): string {
-  if (!mime) return "webm";
-  if (mime.includes("mp4") || mime.includes("m4a")) return "mp4";
-  if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
-  if (mime.includes("ogg")) return "ogg";
-  if (mime.includes("wav")) return "wav";
-  return "webm";
 }
 
 /**
@@ -78,28 +74,31 @@ export const processNoteInternal = internalAction({
 
     let transcript = note.rawTranscript?.trim() ?? "";
     let transcriptSource = note.transcriptSource;
+    // Device text: explicit field for new notes; legacy notes only have it in
+    // rawTranscript when it was never replaced by the server transcript.
+    const deviceTranscript = (
+      note.deviceTranscript ??
+      (note.transcriptSource === "client" ? note.rawTranscript : "")
+    ).trim();
 
-    // --- Whisper when needed -----------------------------------------------
+    // --- Server transcription ----------------------------------------------
+    // Run whenever there is audio, unless a previous attempt already produced
+    // a server transcript (retries should not pay for Whisper twice).
     const needsWhisper =
-      !!note.audioStorageId &&
-      (transcript.length < MIN_TRANSCRIPT_CHARS || !transcript);
+      !!note.audioStorageId && transcriptSource !== "whisper";
 
     if (needsWhisper && note.audioStorageId) {
       try {
         const blob = await ctx.storage.get(note.audioStorageId);
         if (blob) {
-          const ext = mimeToExtension(note.audioMimeType);
-          const file = new File([blob], `note-${noteId}.${ext}`, {
-            type: note.audioMimeType || "audio/webm",
+          // The server transcript becomes primary; the device text is kept
+          // in `deviceTranscript` and still shown to the model below.
+          const whispered = await transcribeAudio(client, {
+            audio: blob,
+            fileName: `note-${noteId}`,
+            mimeType: note.audioMimeType,
+            model: TRANSCRIBE_MODEL,
           });
-          const whisper = await client.audio.transcriptions.create({
-            file,
-            model: "whisper-1",
-            language: "en",
-          });
-          // We only reach here when the client transcript was too weak to use
-          // (see needsWhisper), so Whisper output fully replaces it.
-          const whispered = (whisper.text ?? "").trim();
           if (whispered) {
             transcript = whispered;
             transcriptSource = "whisper";
@@ -136,35 +135,18 @@ export const processNoteInternal = internalAction({
 
     // --- Structure ---------------------------------------------------------
     try {
-      const completion = await client.chat.completions.create({
+      const parsed = await requestStructuredNote(client, {
         model: MODEL,
-        max_tokens: STRUCTURE_MAX_TOKENS,
-        temperature: 0.2,
-        response_format: {
-          type: "json_schema",
-          json_schema: STRUCTURE_NOTE_JSON_SCHEMA,
-        },
-        messages: [
-          { role: "system", content: STRUCTURE_NOTE_SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: buildStructureUserPrompt({
-              companyName,
-              primaryTrade,
-              crewName,
-              workerFlaggedUrgent: note.workerFlaggedUrgent,
-              transcript,
-            }),
-          },
-        ],
+        companyName,
+        primaryTrade,
+        crewName,
+        workerFlaggedUrgent: note.workerFlaggedUrgent,
+        transcript,
+        deviceNotes:
+          transcriptSource === "whisper" && deviceTranscript !== transcript
+            ? deviceTranscript
+            : undefined,
       });
-
-      const content = completion.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error("Empty model response.");
-      }
-
-      const parsed = JSON.parse(content) as StructuredNoteModel;
       if (!URGENCY_VALUES.includes(parsed.urgency)) {
         parsed.urgency = note.workerFlaggedUrgent ? "high" : "medium";
       }

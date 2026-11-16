@@ -15,7 +15,15 @@ import { safeEqualHex } from "./pin";
  *   npx convex env set ENTRY_TOKEN_SECRET <random 32+ byte string>
  */
 
-const TOKEN_TTL_MS = 15 * 60 * 1000;
+/**
+ * Shift-length lifetime. Previously 15 minutes, which meant a worker who
+ * entered their PIN, worked for a while, then recorded would hit "Session
+ * expired" on submit — and the only recovery ("Switch user") discarded the
+ * recording. Revocation does not depend on the TTL: `requireFieldSession`
+ * re-checks that the member is still active on every call, so deactivating
+ * a crew member (or rotating ENTRY_TOKEN_SECRET) cuts access immediately.
+ */
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
 const TOKEN_PREFIX = "echo-entry";
 
 /**

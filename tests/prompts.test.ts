@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildStructureUserPrompt,
   sanitizeStructuredNote,
   type StructuredNoteModel,
 } from "../convex/lib/prompts";
@@ -92,5 +93,30 @@ describe("sanitizeStructuredNote", () => {
     });
     expect(r.title).toBe("Field note");
     expect(r.summary).toBe("No summary generated.");
+  });
+});
+
+describe("buildStructureUserPrompt", () => {
+  it("includes device notes only when provided", () => {
+    const base = {
+      companyName: "Acme Roofing",
+      transcript: "Need two bundles of shingles for the north slope.",
+    };
+    expect(buildStructureUserPrompt(base)).not.toContain("on-device notes");
+    const withDevice = buildStructureUserPrompt({
+      ...base,
+      deviceNotes: "customer is Ramirez, gate code 4412",
+    });
+    expect(withDevice).toContain("Worker's on-device notes:");
+    expect(withDevice).toContain("gate code 4412");
+  });
+
+  it("ignores whitespace-only device notes", () => {
+    const prompt = buildStructureUserPrompt({
+      companyName: "Acme",
+      transcript: "hello world, this is a note",
+      deviceNotes: "   ",
+    });
+    expect(prompt).not.toContain("on-device notes");
   });
 });

@@ -2,7 +2,12 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireCurrentUser, assertSameCompany } from "./lib/tenant";
-import { hashPin, isValidPin, safeEqualHex } from "./lib/pin";
+import {
+  hashPin,
+  isValidPin,
+  lockoutDurationMs,
+  safeEqualHex,
+} from "./lib/pin";
 import { buildFieldVerificationToken } from "./lib/fieldSession";
 
 /**
@@ -142,8 +147,6 @@ export const update = mutation({
 
 /** Failed attempts within a window before the company entry is locked. */
 const MAX_FAILED_ATTEMPTS = 10;
-/** How long entry is locked after hitting the limit. */
-const LOCKOUT_MS = 60_000;
 /** Idle window after which the failure counter resets on its own. */
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 
@@ -178,8 +181,10 @@ async function recordPinFailure(
     updatedAt: now,
   };
   if (failedCount >= MAX_FAILED_ATTEMPTS) {
-    // Lock out and start a fresh window so the next burst is counted anew.
-    patch.lockedUntil = now + LOCKOUT_MS;
+    // Lock out (escalating) and start a fresh window for the next burst.
+    const consecutiveLockouts = (record.consecutiveLockouts ?? 0) + 1;
+    patch.consecutiveLockouts = consecutiveLockouts;
+    patch.lockedUntil = now + lockoutDurationMs(consecutiveLockouts);
     patch.failedCount = 0;
     patch.windowStartedAt = now;
   }
@@ -200,6 +205,7 @@ async function clearPinFailures(
   await ctx.db.patch(record._id, {
     failedCount: 0,
     lockedUntil: undefined,
+    consecutiveLockouts: 0,
     windowStartedAt: now,
     updatedAt: now,
   });
