@@ -1,8 +1,12 @@
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { evaluateConfig } from "./lib/configCheck";
 import { checkBudget } from "./aiUsage";
 import { restoreWorkspace, scheduleDeletion } from "./privacy";
+import { AI_STALE_MS } from "./voiceNotes";
+import { sendEmail } from "./lib/alertProviders";
+import { evaluateHealth, opsRecipients, renderOpsEmail, type CompanyHealth, type HealthReport } from "./lib/opsReport";
 
 /**
  * Operator-only diagnostics. Internal functions cannot be called from the
@@ -90,5 +94,121 @@ export const scheduleWorkspaceDeletion = internalMutation({
     if (!Number.isFinite(days) || days < 0 || days > 30) throw new Error("graceDays must be between 0 and 30.");
     const scheduledFor = await scheduleDeletion(ctx, company, { graceMs: days * 24 * 60 * 60 * 1000 });
     return { scheduledFor: new Date(scheduledFor).toISOString() };
+  },
+});
+
+// --- Health report ------------------------------------------------------------
+
+const HOUR = 60 * 60 * 1000;
+const BUDGET_SKIP = /AI limit|AI is paused/i;
+
+/**
+ * Snapshot of every workspace over the last `windowHours` (default 24):
+ * notes, AI failures and stuck runs, alert/digest failures, AI spend, pending
+ * deletions and config problems. Counts and ids only.
+ *
+ *   npx convex run ops:health --prod
+ *   npx convex run ops:health '{"windowHours":168}' --prod
+ */
+export const health = internalQuery({
+  args: { windowHours: v.optional(v.number()) },
+  handler: async (ctx, { windowHours }): Promise<HealthReport> => {
+    const now = Date.now();
+    const windowMs = Math.min(Math.max(windowHours ?? 24, 1), 24 * 31) * HOUR;
+    const since = now - windowMs;
+    const companies: CompanyHealth[] = [];
+
+    for (const c of await ctx.db.query("companies").take(2_000)) {
+      const notes = await ctx.db
+        .query("voiceNotes")
+        .withIndex("by_company_and_created", (q) => q.eq("companyId", c._id).gte("createdAt", since))
+        .take(5_000);
+      let stuck = 0;
+      for (const status of ["pending", "processing"] as const) {
+        const open = await ctx.db
+          .query("voiceNotes")
+          .withIndex("by_company_and_ai_status", (q) => q.eq("companyId", c._id).eq("aiStatus", status))
+          .take(500);
+        stuck += open.filter((n) => (n.aiStartedAt ?? n.createdAt) < now - AI_STALE_MS).length;
+      }
+      const last = await ctx.db
+        .query("voiceNotes")
+        .withIndex("by_company_and_created", (q) => q.eq("companyId", c._id))
+        .order("desc")
+        .first();
+      const alerts = (
+        await ctx.db
+          .query("alerts")
+          .withIndex("by_company_and_created", (q) => q.eq("companyId", c._id).gte("createdAt", since))
+          .take(2_000)
+      ).filter((a) => !a.isTest);
+      const budget = await checkBudget(ctx, c._id, now);
+      const failed = notes.filter((n) => n.aiStatus === "failed");
+      const skipped = failed.filter((n) => BUDGET_SKIP.test(n.aiErrorMessage ?? "")).length;
+
+      companies.push({
+        companyId: c._id,
+        name: c.name,
+        createdAt: c.createdAt,
+        notes: notes.length,
+        aiFailed: failed.length - skipped,
+        aiSkippedBudget: skipped,
+        aiStuck: stuck,
+        alertsSent: alerts.filter((a) => a.status === "sent").length,
+        alertsFailed: alerts.filter((a) => a.status === "failed").length,
+        digestStatus: c.lastDigestAt && c.lastDigestAt >= since ? (c.lastDigestStatus ?? null) : null,
+        aiSpentMicros: budget.spentMicros,
+        aiBudgetUsd: budget.budgetUsd,
+        aiBudgetLevel: budget.level,
+        lastNoteAt: last?.createdAt ?? null,
+        deletion: c.deletionRequestedAt
+          ? { scheduledFor: c.deletionScheduledFor ?? null, started: !!c.deletionStartedAt || !c.deletionScheduledFor }
+          : null,
+      });
+    }
+
+    const config = evaluateConfig(process.env);
+    return evaluateHealth({
+      now,
+      windowMs,
+      companies,
+      config: {
+        ready: config.ready,
+        failing: config.checks.filter((c) => !c.ok).map(({ name, level, detail }) => ({ name, level, detail })),
+      },
+    });
+  },
+});
+
+/**
+ * Daily ops email to OPS_EMAIL (cron in convex/crons.ts). Sent every day,
+ * even when all is well: if it stops arriving, that's a signal too. Also
+ * logs a one-line `[ops-health]` summary for log streams.
+ *
+ *   npx convex run ops:sendDailyReport --prod     (send one now)
+ */
+export const sendDailyReport = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ status: HealthReport["status"]; sent: number; detail?: string }> => {
+    const report: HealthReport = await ctx.runQuery(internal.ops.health, {});
+    const t = report.totals;
+    console.log(
+      `[ops-health] status=${report.status} issues=${report.issues.length} workspaces=${t.workspaces} notes=${t.notes} ` +
+        `aiFailed=${t.aiFailed} aiStuck=${t.aiStuck} alertsFailed=${t.alertsFailed}`,
+    );
+    const to = opsRecipients(process.env.OPS_EMAIL);
+    if (to.length === 0) return { status: report.status, sent: 0, detail: "OPS_EMAIL not set." };
+
+    const deployment = process.env.CONVEX_CLOUD_URL ?? "unknown deployment";
+    const msg = renderOpsEmail(report, deployment);
+    let sent = 0;
+    const errors: string[] = [];
+    for (const addr of to) {
+      const res = await sendEmail({ to: addr, ...msg }, process.env);
+      if (res.status === "sent") sent++;
+      else errors.push(`${res.status}: ${res.detail}`);
+    }
+    if (errors.length) console.error(`[ops-health] email: ${errors.join(" | ")}`);
+    return { status: report.status, sent, detail: errors[0] };
   },
 });

@@ -95,6 +95,13 @@ npx convex env set --prod TWILIO_AUTH_TOKEN
 npx convex env set --prod TWILIO_FROM_NUMBER +15550001111
 ```
 
+**Daily ops report** (needs the Resend keys above). Use your own address,
+or several separated by commas:
+
+```bash
+npx convex env set --prod OPS_EMAIL you@raincode.ai
+```
+
 The `ALERT_FROM_EMAIL` domain must be verified in Resend. For US texting,
 Twilio requires the sending number to be registered (A2P 10DLC or toll-free
 verification) before carriers deliver messages reliably. Start that early:
@@ -179,6 +186,23 @@ npx convex run ops:checkConfig --prod
 
 Expect `"ready": true`. Any `required` check with `"ok": false` blocks launch.
 The output never includes secret values.
+
+### Ops report (1 minute)
+
+```bash
+npx convex run ops:health --prod
+```
+
+This is the same snapshot the daily ops email sends. Its `issues` list should
+be empty on a new deployment, apart from config items you've chosen to skip.
+To send one email now and check it arrives:
+
+```bash
+npx convex run ops:sendDailyReport --prod
+```
+
+The report goes out every day at 14:23 UTC, even when everything is fine. If
+it stops arriving, check the Convex logs for `[ops-health]`.
 
 ### Storage cleanup dry run (first deploy, and after any schema change that stores files)
 

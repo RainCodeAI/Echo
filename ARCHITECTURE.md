@@ -866,6 +866,25 @@ MVP-friendly practices (align with Quill/Relay where useful):
   third-party tools by default).
 - Persist `aiErrorMessage` and attempt counts on the note for owner-visible
   diagnosis.
+- **Operator health** (`convex/ops.ts`, pure logic in `convex/lib/opsReport.ts`):
+  - `ops:health` (internal) walks every workspace over the last
+    `windowHours` (default 24) and reports:
+    - notes created
+    - AI failures, not counting budget skips
+    - AI runs stuck past `AI_STALE_MS`
+    - urgent alerts sent and failed (test alerts excluded)
+    - the digest's last status
+    - this month's AI spend against the budget
+    - pending deletions
+    - workspaces that recorded before but have gone quiet for 7 days
+    - failing config checks
+  - Issues are graded critical, warning or info. Stuck AI and missing
+    required config are critical.
+  - Counts and ids only: no note content.
+  - `ops:sendDailyReport` runs from a daily cron at 14:23 UTC:
+    - It emails the report to `OPS_EMAIL` (comma-separated) through Resend.
+    - It sends every day, so a missing email is itself a signal.
+    - It logs one `[ops-health]` summary line.
 - Optional later: events table for “note_created”, “ai_completed”,
   “note_reviewed” (SiteAssist `events` pattern).
 

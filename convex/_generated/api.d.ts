@@ -38,6 +38,7 @@ import type * as lib_noteEdits from "../lib/noteEdits.js";
 import type * as lib_officeUsers from "../lib/officeUsers.js";
 import type * as lib_onboarding from "../lib/onboarding.js";
 import type * as lib_openaiCalls from "../lib/openaiCalls.js";
+import type * as lib_opsReport from "../lib/opsReport.js";
 import type * as lib_orderList from "../lib/orderList.js";
 import type * as lib_people from "../lib/people.js";
 import type * as lib_pin from "../lib/pin.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   "lib/officeUsers": typeof lib_officeUsers;
   "lib/onboarding": typeof lib_onboarding;
   "lib/openaiCalls": typeof lib_openaiCalls;
+  "lib/opsReport": typeof lib_opsReport;
   "lib/orderList": typeof lib_orderList;
   "lib/people": typeof lib_people;
   "lib/pin": typeof lib_pin;

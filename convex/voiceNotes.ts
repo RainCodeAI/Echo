@@ -41,7 +41,7 @@ const MAX_AI_ATTEMPTS = 5;
  * dead (Convex actions time out at 10 minutes; a crashed action never writes
  * a failure). Owners may retry it instead of being blocked forever.
  */
-const AI_STALE_MS = 12 * 60 * 1000;
+export const AI_STALE_MS = 12 * 60 * 1000;
 /** Photo attachment limits per note. */
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
