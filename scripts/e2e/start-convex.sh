@@ -21,12 +21,21 @@ echo "Local deployment:"; grep -E "CONVEX_(URL|DEPLOYMENT)" .env.local
 
 # 2. Env vars the functions need. (The first push fails without the auth
 #    domain; it's a placeholder: the crew flow doesn't use Clerk.)
-for _ in $(seq 1 30); do
-  npx convex env set CLERK_JWT_ISSUER_DOMAIN "https://clerk.e2e.invalid" && break
-  sleep 2
-done
-npx convex env set ENTRY_TOKEN_SECRET "$(openssl rand -hex 32)"
-npx convex env set E2E_SEED_ALLOWED 1
+#    Every set is retried: `convex dev` reacts to each change by re-pushing,
+#    and a set that lands mid-push can fail with a 503
+#    OptimisticConcurrencyControlFailure (seen on main, run 44004811126).
+set_env() {
+  local name="$1" value="$2"
+  for attempt in $(seq 1 15); do
+    if npx convex env set "$name" "$value"; then return 0; fi
+    echo "convex env set $name failed (attempt $attempt); retrying..."
+    sleep 2
+  done
+  fail "Couldn't set $name on the local deployment."
+}
+set_env CLERK_JWT_ISSUER_DOMAIN "https://clerk.e2e.invalid"
+set_env ENTRY_TOKEN_SECRET "$(openssl rand -hex 32)"
+set_env E2E_SEED_ALLOWED 1
 
 # 3. Trigger a push now that the env vars exist, and wait for it.
 touch convex/schema.ts
