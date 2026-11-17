@@ -20,18 +20,8 @@ import type * as digestRunner from "../digestRunner.js";
 import type * as e2e from "../e2e.js";
 import type * as invites from "../invites.js";
 import type * as jobUpdates from "../jobUpdates.js";
-import type * as materials from "../materials.js";
 import type * as jobs from "../jobs.js";
 import type * as leads from "../leads.js";
-import type * as officeUsers from "../officeUsers.js";
-import type * as onboarding from "../onboarding.js";
-import type * as ops from "../ops.js";
-import type * as privacy from "../privacy.js";
-import type * as storageCleanup from "../storageCleanup.js";
-import type * as tasks from "../tasks.js";
-import type * as teamMembers from "../teamMembers.js";
-import type * as users from "../users.js";
-import type * as voiceNotes from "../voiceNotes.js";
 import type * as lib_aiUsage from "../lib/aiUsage.js";
 import type * as lib_alertProviders from "../lib/alertProviders.js";
 import type * as lib_alerts from "../lib/alerts.js";
@@ -44,11 +34,11 @@ import type * as lib_email from "../lib/email.js";
 import type * as lib_fieldJobs from "../lib/fieldJobs.js";
 import type * as lib_fieldSession from "../lib/fieldSession.js";
 import type * as lib_jobUpdates from "../lib/jobUpdates.js";
-import type * as lib_orderList from "../lib/orderList.js";
 import type * as lib_noteEdits from "../lib/noteEdits.js";
 import type * as lib_officeUsers from "../lib/officeUsers.js";
 import type * as lib_onboarding from "../lib/onboarding.js";
 import type * as lib_openaiCalls from "../lib/openaiCalls.js";
+import type * as lib_orderList from "../lib/orderList.js";
 import type * as lib_people from "../lib/people.js";
 import type * as lib_pin from "../lib/pin.js";
 import type * as lib_privacy from "../lib/privacy.js";
@@ -57,6 +47,16 @@ import type * as lib_search from "../lib/search.js";
 import type * as lib_tasks from "../lib/tasks.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as lib_uploadQuota from "../lib/uploadQuota.js";
+import type * as materials from "../materials.js";
+import type * as officeUsers from "../officeUsers.js";
+import type * as onboarding from "../onboarding.js";
+import type * as ops from "../ops.js";
+import type * as privacy from "../privacy.js";
+import type * as storageCleanup from "../storageCleanup.js";
+import type * as tasks from "../tasks.js";
+import type * as teamMembers from "../teamMembers.js";
+import type * as users from "../users.js";
+import type * as voiceNotes from "../voiceNotes.js";
 
 import type {
   ApiFromModules,
@@ -77,18 +77,8 @@ declare const fullApi: ApiFromModules<{
   e2e: typeof e2e;
   invites: typeof invites;
   jobUpdates: typeof jobUpdates;
-  materials: typeof materials;
   jobs: typeof jobs;
   leads: typeof leads;
-  officeUsers: typeof officeUsers;
-  onboarding: typeof onboarding;
-  ops: typeof ops;
-  privacy: typeof privacy;
-  storageCleanup: typeof storageCleanup;
-  tasks: typeof tasks;
-  teamMembers: typeof teamMembers;
-  users: typeof users;
-  voiceNotes: typeof voiceNotes;
   "lib/aiUsage": typeof lib_aiUsage;
   "lib/alertProviders": typeof lib_alertProviders;
   "lib/alerts": typeof lib_alerts;
@@ -101,11 +91,11 @@ declare const fullApi: ApiFromModules<{
   "lib/fieldJobs": typeof lib_fieldJobs;
   "lib/fieldSession": typeof lib_fieldSession;
   "lib/jobUpdates": typeof lib_jobUpdates;
-  "lib/orderList": typeof lib_orderList;
   "lib/noteEdits": typeof lib_noteEdits;
   "lib/officeUsers": typeof lib_officeUsers;
   "lib/onboarding": typeof lib_onboarding;
   "lib/openaiCalls": typeof lib_openaiCalls;
+  "lib/orderList": typeof lib_orderList;
   "lib/people": typeof lib_people;
   "lib/pin": typeof lib_pin;
   "lib/privacy": typeof lib_privacy;
@@ -114,13 +104,42 @@ declare const fullApi: ApiFromModules<{
   "lib/tasks": typeof lib_tasks;
   "lib/tenant": typeof lib_tenant;
   "lib/uploadQuota": typeof lib_uploadQuota;
+  materials: typeof materials;
+  officeUsers: typeof officeUsers;
+  onboarding: typeof onboarding;
+  ops: typeof ops;
+  privacy: typeof privacy;
+  storageCleanup: typeof storageCleanup;
+  tasks: typeof tasks;
+  teamMembers: typeof teamMembers;
+  users: typeof users;
+  voiceNotes: typeof voiceNotes;
 }>;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
+
+export declare const components: {};
