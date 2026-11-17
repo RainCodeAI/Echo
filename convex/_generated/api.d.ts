@@ -17,6 +17,7 @@ import type * as customerUpdates from "../customerUpdates.js";
 import type * as customerUpdatesAi from "../customerUpdatesAi.js";
 import type * as digest from "../digest.js";
 import type * as digestRunner from "../digestRunner.js";
+import type * as e2e from "../e2e.js";
 import type * as invites from "../invites.js";
 import type * as jobUpdates from "../jobUpdates.js";
 import type * as materials from "../materials.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   customerUpdatesAi: typeof customerUpdatesAi;
   digest: typeof digest;
   digestRunner: typeof digestRunner;
+  e2e: typeof e2e;
   invites: typeof invites;
   jobUpdates: typeof jobUpdates;
   materials: typeof materials;

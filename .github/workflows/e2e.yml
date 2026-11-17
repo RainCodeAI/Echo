@@ -1,0 +1,61 @@
+name: E2E
+
+# The real app against a real (local, throwaway) Convex backend. Also checks
+# that convex/_generated matches what real codegen produces.
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E (real Convex backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CONVEX_AGENT_MODE: anonymous
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Placeholders: the crew flow doesn't use Clerk.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+      CLERK_SECRET_KEY: sk_test_ci_placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Start a local Convex backend and push the functions
+        run: bash scripts/e2e/start-convex.sh
+
+      - name: Generated API types match real codegen
+        run: git diff --exit-code -- convex/_generated
+
+      - name: Build the app against the local backend
+        run: npm run build
+
+      - name: E2E tests
+        run: npx playwright test -c playwright.e2e.config.ts
+
+      - name: Upload logs and traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            tests/e2e/.results/
+            ${{ runner.temp }}/convex-dev.log
+          retention-days: 7
