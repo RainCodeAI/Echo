@@ -39,3 +39,7 @@ yarn-error.log*
 /tests/browser/.out/
 /tests/browser/.results/
 /playwright-report/
+
+# e2e (seed file, traces)
+/tests/e2e/.results/
+/tests/e2e/.seed.json
