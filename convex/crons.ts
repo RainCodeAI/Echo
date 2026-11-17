@@ -16,4 +16,8 @@ crons.daily(
 // local hour (convex/digestRunner.ts). One digest per company per day.
 crons.hourly("daily digests", { minuteUTC: 7 }, internal.digestRunner.runDueDigests, {});
 
+// Daily ops report to OPS_EMAIL (convex/ops.ts). Mid-morning US Eastern,
+// after the overnight digests and storage cleanup.
+crons.daily("ops report", { hourUTC: 14, minuteUTC: 23 }, internal.ops.sendDailyReport, {});
+
 export default crons;

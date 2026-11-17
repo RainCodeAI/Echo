@@ -95,6 +95,17 @@ export function evaluateConfig(env: Env): {
     "recommended",
     smsOk ? "Set." : "Not set — urgent alerts won't be texted.",
   );
+  const opsEmail = (env.OPS_EMAIL ?? "").trim();
+  add(
+    "OPS_EMAIL",
+    !!opsEmail && emailOk,
+    "recommended",
+    !opsEmail
+      ? "Not set — no daily ops report email (ops:health still works)."
+      : emailOk
+        ? "Set — daily ops report goes here."
+        : "Set, but alert email isn't configured, so the report can't be sent.",
+  );
   const appUrl = env.APP_URL ?? "";
   add(
     "APP_URL",
