@@ -699,16 +699,38 @@ Constants live in `convex/lib/privacy.ts`, server functions in
   `media-errors.txt`. PIN hashes, Clerk ids, storage ids and client upload
   keys are never exported.
 - **Workspace deletion** (owner only, type the workspace name):
-  - `deletionRequestedAt` is set, alerts and digest are switched off, and
-    access stops at once: `requireCurrentUser`, `requireFieldSession`,
-    `verifyPin` and `publicProfile` all refuse.
-  - `deleteWorkspaceBatch` then deletes 100 rows at a time per table, in
-    `DELETION_ORDER` (crew access first, office users last, then the
-    company). Storage files and per-member upload quotas go with their rows.
-  - The client signs the owner out. The Clerk account itself remains;
-    signing in again creates a fresh workspace.
-- Not done yet: automatic retention (e.g. delete audio after N days), a grace
-  period or undo for workspace deletion, and deleting the Clerk account.
+  - `privacy.deleteWorkspace` calls `scheduleDeletion`. It sets
+    `deletionRequestedAt`/`By`, saves the alert and digest settings in
+    `deletionRestore`, switches both off, and schedules
+    `deleteWorkspaceBatch` for `deletionScheduledFor` = now + 7 days
+    (`DELETION_GRACE_DAYS`). The job id goes in `deletionJobId`.
+  - Access stops at once: `requireCurrentUser`, `requireFieldSession`,
+    `verifyPin` and `publicProfile` all refuse. The one exception is
+    `requireCurrentUser(ctx, { allowPendingDeletion: true })`, used only by
+    `exportPage` and `cancelDeletion` during the grace period.
+  - The dashboard shell checks `privacy.pendingDeletion` and shows
+    `DeletionPending` instead of the app. The owner can cancel or export
+    there; members can only sign out.
+  - `cancelDeletion` (or `ops:cancelWorkspaceDeletion`) cancels the scheduled
+    job, clears the fields and restores the saved settings.
+  - When the timer fires, the first batch sets `deletionStartedAt`, and from
+    then on nothing can be cancelled. A run that fires before
+    `deletionScheduledFor` does nothing. Batches then delete 100 rows at a
+    time per table in `DELETION_ORDER` (crew access first, office users last,
+    then the company). Storage files and per-member upload quotas go with
+    their rows.
+  - Companies with `deletionRequestedAt` but no `deletionScheduledFor` were
+    requested before the grace period existed. They are treated as already
+    purging.
+  - Log lines `[workspace-deletion-requested|cancelled]` and
+    `[workspace-deleted]` let ops re-apply deletions after a backup restore
+    (`ops:scheduleWorkspaceDeletion`). See `docs/BACKUP_RESTORE.md`.
+  - The Clerk account itself remains. Signing in after the purge creates a
+    fresh workspace.
+- Not done yet:
+  - automatic retention (e.g. delete audio after N days)
+  - an email to the owner when deletion is scheduled
+  - deleting the Clerk account
 
 ## 11h. AI usage caps
 

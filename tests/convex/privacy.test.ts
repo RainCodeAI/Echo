@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { hashPin } from "../../convex/lib/pin";
-import { RECORDING_NOTICE_VERSION, TERMS_VERSION } from "../../convex/lib/privacy";
+import { DELETION_GRACE_MS, RECORDING_NOTICE_VERSION, TERMS_VERSION } from "../../convex/lib/privacy";
 import { makeTest } from "./setup";
 
 beforeEach(() => {
@@ -209,5 +209,118 @@ describe("deleteWorkspace", () => {
     await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await countFor(s.t, s.a.companyId)).voiceNotes).toBe(0);
+  });
+});
+
+describe("deletion grace period", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("keeps the data for the grace period; owner sees it, can export, members can't act", async () => {
+    const s = await seed();
+    const before = await countFor(s.t, s.a.companyId);
+    const t0 = Date.now();
+    const { scheduledFor } = await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
+    expect(Math.abs(scheduledFor - t0 - DELETION_GRACE_MS)).toBeLessThan(1000);
+
+    vi.advanceTimersByTime(DELETION_GRACE_MS - DAY);
+    await s.t.finishInProgressScheduledFunctions();
+    expect(await countFor(s.t, s.a.companyId)).toEqual(before);
+
+    expect(await s.owner.query(api.privacy.pendingDeletion, {})).toMatchObject({
+      companyName: "Acme Roofing", isOwner: true, requestedByName: "Acme Roofing owner", scheduledFor, started: false,
+    });
+    expect(await s.member.query(api.privacy.pendingDeletion, {})).toMatchObject({ isOwner: false });
+    expect(await s.other.query(api.privacy.pendingDeletion, {})).toBeNull();
+
+    // Export still works for the owner; nothing else does.
+    const page = await s.owner.query(api.privacy.exportPage, { table: "voiceNotes", cursor: null });
+    expect(page.rows).toHaveLength(1);
+    await expect(s.member.query(api.privacy.exportPage, { table: "voiceNotes", cursor: null })).rejects.toThrow(/owner/);
+    await expect(s.owner.query(api.voiceNotes.listForCompany, {})).rejects.toThrow(/deleted/);
+    await expect(s.member.mutation(api.privacy.cancelDeletion, {})).rejects.toThrow(/owner/);
+
+    // After the grace period it's gone.
+    vi.advanceTimersByTime(DAY);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await countFor(s.t, s.a.companyId)).company).toBe(0);
+    expect(await s.owner.query(api.privacy.pendingDeletion, {})).toBeNull();
+  });
+
+  it("cancelling restores access and settings, and the purge never runs", async () => {
+    const s = await seed();
+    await s.t.run((ctx) => ctx.db.patch(s.a.companyId, { digestEnabled: false }));
+    const before = await countFor(s.t, s.a.companyId);
+    await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
+    expect(await s.t.mutation(api.teamMembers.verifyPin, { companyId: s.a.companyId, pin: "1234" })).toMatchObject({ ok: false });
+
+    vi.advanceTimersByTime(3 * DAY);
+    await s.owner.mutation(api.privacy.cancelDeletion, {});
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await countFor(s.t, s.a.companyId)).toEqual(before);
+    const company = await s.t.run((ctx) => ctx.db.get(s.a.companyId));
+    expect(company).toMatchObject({ notificationsEnabled: true, digestEnabled: false });
+    expect(company?.deletionRequestedAt).toBeUndefined();
+    expect(company?.deletionJobId).toBeUndefined();
+    expect(await s.owner.query(api.privacy.pendingDeletion, {})).toBeNull();
+    expect(await s.member.query(api.voiceNotes.listForCompany, {})).toHaveLength(1);
+    expect(await s.t.query(api.companies.publicProfile, { companyId: s.a.companyId })).not.toBeNull();
+    expect(await s.t.mutation(api.teamMembers.verifyPin, { companyId: s.a.companyId, pin: "1234" })).toMatchObject({ ok: true });
+  });
+
+  it("can't be cancelled once data removal has started", async () => {
+    const s = await seed();
+    await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
+    vi.advanceTimersByTime(DELETION_GRACE_MS);
+    // Run only the first batch.
+    await s.t.mutation(internal.privacy.deleteWorkspaceBatch, { companyId: s.a.companyId, step: 0 });
+    expect(await s.owner.query(api.privacy.pendingDeletion, {})).toMatchObject({ started: true });
+    await expect(s.owner.mutation(api.privacy.cancelDeletion, {})).rejects.toThrow(/deleted/);
+  });
+
+  it("an early purge run (stale timer) does nothing", async () => {
+    const s = await seed();
+    const before = await countFor(s.t, s.a.companyId);
+    await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
+    await s.t.mutation(internal.privacy.deleteWorkspaceBatch, { companyId: s.a.companyId, step: 0 });
+    expect(await countFor(s.t, s.a.companyId)).toEqual(before);
+    expect(await s.owner.query(api.privacy.pendingDeletion, {})).toMatchObject({ started: false });
+  });
+});
+
+describe("ops: pending deletions", () => {
+  it("lists pending workspaces and can restore one for the owner", async () => {
+    const s = await seed();
+    await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
+    const list = await s.t.query(internal.ops.pendingDeletions, {});
+    expect(list).toEqual([expect.objectContaining({ companyId: s.a.companyId, name: "Acme Roofing", started: false })]);
+    expect(await s.t.mutation(internal.ops.cancelWorkspaceDeletion, { companyId: s.a.companyId })).toEqual({ restored: true });
+    expect(await s.t.mutation(internal.ops.cancelWorkspaceDeletion, { companyId: s.a.companyId })).toEqual({ restored: false });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await countFor(s.t, s.a.companyId)).company).toBe(1);
+    expect(await s.t.query(internal.ops.pendingDeletions, {})).toEqual([]);
+  });
+});
+
+describe("ops: re-apply a deletion after a restore", () => {
+  it("purges with no grace by default, keeping the original request time", async () => {
+    const s = await seed();
+    const out = await s.t.mutation(internal.ops.scheduleWorkspaceDeletion, { companyId: s.a.companyId });
+    expect(new Date(out.scheduledFor).getTime()).toBeLessThanOrEqual(Date.now());
+    await expect(s.owner.query(api.voiceNotes.listForCompany, {})).rejects.toThrow(/deleted/);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await countFor(s.t, s.a.companyId)).company).toBe(0);
+    await expect(s.t.mutation(internal.ops.scheduleWorkspaceDeletion, { companyId: s.a.companyId })).rejects.toThrow(/not found/);
+  });
+
+  it("rescheduling a pending deletion replaces its timer and keeps the saved settings", async () => {
+    const s = await seed();
+    await s.owner.mutation(api.privacy.deleteWorkspace, { confirmName: "Acme Roofing" });
+    await s.t.mutation(internal.ops.scheduleWorkspaceDeletion, { companyId: s.a.companyId, graceDays: 1 });
+    const c = await s.t.run((ctx) => ctx.db.get(s.a.companyId));
+    expect(c?.deletionRestore).toEqual({ notificationsEnabled: true, digestEnabled: true });
+    await s.owner.mutation(api.privacy.cancelDeletion, {});
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await s.t.run((ctx) => ctx.db.get(s.a.companyId))).toMatchObject({ notificationsEnabled: true, digestEnabled: true });
   });
 });

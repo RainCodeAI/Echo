@@ -64,6 +64,8 @@ const REVIEWED: Record<string, Access> = {
   "privacy.deleteNote": "owner",
   "privacy.exportPage": "owner",
   "privacy.deleteWorkspace": "owner",
+  "privacy.pendingDeletion": "self",
+  "privacy.cancelDeletion": "owner",
   "tasks.list": "member",
   "tasks.people": "member",
   "tasks.summary": "member",
