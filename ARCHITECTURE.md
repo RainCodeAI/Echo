@@ -463,6 +463,32 @@ access immediately.
 
 ---
 
+### 9.x Real-phone behaviour (`lib/field-device.ts`)
+
+- **Interruptions:** while recording, the crew page stops cleanly and keeps
+  the audio captured so far when any of these happens:
+  - the page is hidden (`visibilitychange` / `pagehide`: screen lock or app switch)
+  - the mic track ends (a call, Siri, another app)
+  - `MediaRecorder` reports an error
+  - the 10-minute cap is reached
+  An amber note says why. An empty blob after an interruption is reported
+  instead of being submitted.
+- **Screen Wake Lock:** held while recording, where the phone supports it.
+- **Mid-recording checkpoints:** every 5 seconds, the audio so far is saved
+  as the draft with `interrupted: true`. A page killed mid-recording reopens
+  with that audio and a "cut off" note. Drafts are also saved before
+  recording when photos are attached, because the camera can make Android
+  reload the page.
+- **Mic errors:** messages map `getUserMedia` errors to steps for that phone:
+  - blocked: how to re-allow the mic in iOS Safari or Android Chrome
+  - busy, missing, unsupported or insecure: what to try instead
+  - in-app browsers (Facebook, Instagram, WhatsApp…): open in Safari or Chrome
+- **Phone check** (`components/entry/phone-check.tsx`): on the PIN screen and
+  the recorder. It shows the browser, mic permission, audio format, live
+  transcript, wake lock, storage persistence and free space, signal, notes
+  waiting, and Home Screen mode. Crews screenshot it for the office.
+- **Manual real-phone script:** `docs/FIELD_TEST.md`.
+
 ## 10. Frontend route map
 
 | Route | Audience | Purpose |

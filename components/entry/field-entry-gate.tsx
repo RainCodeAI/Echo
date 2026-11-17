@@ -23,6 +23,7 @@ import {
   FieldQueueProvider,
   useFieldQueue,
 } from "@/components/entry/field-queue-provider";
+import { PhoneCheck } from "@/components/entry/phone-check";
 import { FieldQueueStatus } from "@/components/entry/field-queue-status";
 import { RecordingNotice } from "@/components/entry/recording-notice";
 import {
@@ -253,6 +254,8 @@ function FieldEntryGateInner({ companyId, companyName, pinLength = 4 }: FieldEnt
             Continue
           </Button>
         ) : null}
+
+        <PhoneCheck />
       </CardContent>
     </Card>
   );
