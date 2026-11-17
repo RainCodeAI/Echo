@@ -23,7 +23,8 @@ export default defineConfig({
   },
   webServer: {
     command: "npx next start -p 3000 -H 127.0.0.1",
-    url: "http://127.0.0.1:3000/privacy",
+    // A static file: skips the Clerk middleware, which can stall on placeholder keys.
+    url: "http://127.0.0.1:3000/manifest.webmanifest",
     reuseExistingServer: false,
     timeout: 120_000,
   },
