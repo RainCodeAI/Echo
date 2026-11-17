@@ -66,8 +66,9 @@ export default function PrivacyPage() {
         <li>The owner can export all workspace data at any time (Settings → Your data).</li>
         <li>The owner can permanently delete a single note, including its recording and photos.</li>
         <li>
-          The owner can delete the whole workspace. Access stops immediately and the data is removed from our active
-          systems shortly after. Copies may remain in our providers&rsquo; backups for a limited time before they expire.
+          The owner can delete the whole workspace. Access stops immediately. The data is removed from our active
+          systems 7 days later; until then the owner can cancel the deletion or export the data. Copies may remain in
+          our backups for a limited time before they expire.
         </li>
         <li>Deleting a workspace doesn&rsquo;t delete the sign-in account itself; that can be removed from the account settings.</li>
       </ul>

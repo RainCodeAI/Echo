@@ -37,6 +37,10 @@ export const DELETION_ORDER = [
 ] as const;
 export type DeletionTable = (typeof DELETION_ORDER)[number];
 
+/** Days between "Delete workspace" and the data actually being removed. */
+export const DELETION_GRACE_DAYS = 7;
+export const DELETION_GRACE_MS = DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
 /** The exact phrase an owner types to confirm deleting the workspace. */
 export function deletionConfirmationMatches(typed: string, companyName: string): boolean {
   const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();

@@ -2,8 +2,14 @@ import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } fr
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { assertSameCompany, requireCurrentUser, requireOwner } from "./lib/tenant";
-import { DELETION_ORDER, TERMS_VERSION, deletionConfirmationMatches, type DeletionTable } from "./lib/privacy";
+import { assertSameCompany, getCurrentUser, requireCurrentUser, requireOwner } from "./lib/tenant";
+import {
+  DELETION_GRACE_MS,
+  DELETION_ORDER,
+  TERMS_VERSION,
+  deletionConfirmationMatches,
+  type DeletionTable,
+} from "./lib/privacy";
 
 /**
  * Privacy and data lifecycle: terms acceptance, permanent note deletion,
@@ -97,7 +103,8 @@ const PAGE_SIZE = 200;
 export const exportPage = query({
   args: { table: exportTable, cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, { table, cursor }) => {
-    const user = await requireOwner(ctx);
+    // Still allowed while deletion is pending, so the owner can take a copy.
+    const user = await requireOwner(ctx, { allowPendingDeletion: true });
     const companyId = user.companyId;
     const opts = { cursor, numItems: PAGE_SIZE };
     const url = async (id: Id<"_storage"> | undefined) => (id ? await ctx.storage.getUrl(id) : null);
@@ -193,7 +200,8 @@ async function batchFor(ctx: QueryCtx, table: DeletionTable, companyId: Id<"comp
 
 /**
  * Delete the whole workspace (owner only, after typing its name). Access stops
- * at once; the data is then removed in batches in the background.
+ * at once for everyone; the data is removed after a grace period, during which
+ * the owner can cancel (or still export) from the dashboard.
  */
 export const deleteWorkspace = mutation({
   args: { confirmName: v.string() },
@@ -204,25 +212,121 @@ export const deleteWorkspace = mutation({
     if (!deletionConfirmationMatches(args.confirmName, company.name)) {
       throw new Error("Type the workspace name exactly to confirm.");
     }
-    await ctx.db.patch(company._id, {
-      deletionRequestedAt: Date.now(),
-      notificationsEnabled: false,
-      digestEnabled: false,
-      updatedAt: Date.now(),
-    });
-    await ctx.scheduler.runAfter(0, internal.privacy.deleteWorkspaceBatch, { companyId: company._id, step: 0 });
+    const scheduledFor = await scheduleDeletion(ctx, company, { requestedBy: user._id, graceMs: DELETION_GRACE_MS });
+    return { scheduledFor };
+  },
+});
+
+/**
+ * Lock a workspace and schedule its purge after `graceMs` (also used by
+ * `ops:scheduleWorkspaceDeletion` to re-apply deletions after a restore).
+ */
+export async function scheduleDeletion(
+  ctx: MutationCtx,
+  company: Doc<"companies">,
+  opts: { requestedBy?: Id<"users">; graceMs: number },
+) {
+  if (company.deletionJobId) await ctx.scheduler.cancel(company.deletionJobId);
+  const now = Date.now();
+  const scheduledFor = now + opts.graceMs;
+  const jobId = await ctx.scheduler.runAt(scheduledFor, internal.privacy.deleteWorkspaceBatch, {
+    companyId: company._id,
+    step: 0,
+  });
+  const alreadyLocked = !!company.deletionRequestedAt;
+  await ctx.db.patch(company._id, {
+    deletionRequestedAt: company.deletionRequestedAt ?? now,
+    deletionRequestedBy: opts.requestedBy ?? company.deletionRequestedBy,
+    deletionScheduledFor: scheduledFor,
+    deletionJobId: jobId,
+    deletionRestore: alreadyLocked
+      ? company.deletionRestore
+      : { notificationsEnabled: company.notificationsEnabled, digestEnabled: company.digestEnabled },
+    notificationsEnabled: false,
+    digestEnabled: false,
+    updatedAt: now,
+  });
+  console.log(`[workspace-deletion-requested] companyId=${company._id} scheduledFor=${new Date(scheduledFor).toISOString()}`);
+  return scheduledFor;
+}
+
+/**
+ * For the dashboard shell: is the signed-in user's workspace waiting to be
+ * deleted? Doesn't throw for a pending workspace (unlike everything else).
+ */
+export const pendingDeletion = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return null;
+    const company = await ctx.db.get(user.companyId);
+    if (!company?.deletionRequestedAt) return null;
+    const requestedBy = company.deletionRequestedBy ? await ctx.db.get(company.deletionRequestedBy) : null;
+    return {
+      companyName: company.name,
+      isOwner: user.role === "owner",
+      requestedAt: company.deletionRequestedAt,
+      requestedByName: requestedBy?.name ?? null,
+      scheduledFor: company.deletionScheduledFor ?? null,
+      /** Data removal has begun: nothing to cancel any more. */
+      started: !!company.deletionStartedAt || !company.deletionScheduledFor,
+    };
+  },
+});
+
+/** Owner changes their mind during the grace period: everything comes back. */
+export const cancelDeletion = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireOwner(ctx, { allowPendingDeletion: true });
+    await restoreWorkspace(ctx, user.companyId);
     return null;
   },
 });
+
+/**
+ * Undo a pending deletion (also used by `ops:cancelWorkspaceDeletion`).
+ * Refuses once data removal has started.
+ */
+export async function restoreWorkspace(ctx: MutationCtx, companyId: Id<"companies">) {
+  const company = await ctx.db.get(companyId);
+  if (!company) throw new Error("Not found");
+  if (!company.deletionRequestedAt) return false;
+  if (company.deletionStartedAt || !company.deletionScheduledFor) {
+    throw new Error("Data removal has already started; this workspace can't be restored.");
+  }
+  if (company.deletionJobId) await ctx.scheduler.cancel(company.deletionJobId);
+  await ctx.db.patch(company._id, {
+    deletionRequestedAt: undefined,
+    deletionRequestedBy: undefined,
+    deletionScheduledFor: undefined,
+    deletionJobId: undefined,
+    deletionRestore: undefined,
+    notificationsEnabled: company.deletionRestore?.notificationsEnabled,
+    digestEnabled: company.deletionRestore?.digestEnabled,
+    updatedAt: Date.now(),
+  });
+  console.log(`[workspace-deletion-cancelled] companyId=${companyId}`);
+  return true;
+}
 
 export const deleteWorkspaceBatch = internalMutation({
   args: { companyId: v.id("companies"), step: v.number() },
   handler: async (ctx, { companyId, step }) => {
     const company = await ctx.db.get(companyId);
-    if (!company || !company.deletionRequestedAt) return null;
+    if (!company || !company.deletionRequestedAt) return null; // cancelled
+    if (step === 0 && !company.deletionStartedAt) {
+      // A stale run (e.g. a cancel raced the timer and a new request followed)
+      // must not start the purge early.
+      if (company.deletionScheduledFor && company.deletionScheduledFor > Date.now()) return null;
+      await ctx.db.patch(companyId, { deletionStartedAt: Date.now(), deletionJobId: undefined });
+    }
 
     if (step >= DELETION_ORDER.length) {
       await ctx.db.delete(companyId);
+      // Kept in the logs (not the database) so it survives a backup restore:
+      // see docs/BACKUP_RESTORE.md, "Deletions after the backup".
+      console.log(`[workspace-deleted] companyId=${companyId} requestedAt=${new Date(company.deletionRequestedAt).toISOString()}`);
       return null;
     }
     const table = DELETION_ORDER[step];

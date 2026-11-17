@@ -178,8 +178,22 @@ export default defineSchema({
      * AI_MONTHLY_BUDGET_USD; 0 pauses AI for this company).
      */
     aiMonthlyBudgetUsd: v.optional(v.number()),
-    /** Set when the owner deletes the workspace; data is removed in batches. */
+    /**
+     * Set when the owner deletes the workspace. Access stops at once; the data
+     * is removed in batches from `deletionScheduledFor` (a grace period during
+     * which the owner can cancel). Rows without `deletionScheduledFor` were
+     * requested before the grace period existed and purge straight away.
+     */
     deletionRequestedAt: v.optional(v.number()),
+    deletionRequestedBy: v.optional(v.id("users")),
+    deletionScheduledFor: v.optional(v.number()),
+    deletionJobId: v.optional(v.id("_scheduled_functions")),
+    /** Set by the first purge batch; cancelling is impossible after this. */
+    deletionStartedAt: v.optional(v.number()),
+    /** Alert/digest settings before deletion, restored if it's cancelled. */
+    deletionRestore: v.optional(
+      v.object({ notificationsEnabled: v.optional(v.boolean()), digestEnabled: v.optional(v.boolean()) }),
+    ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }).index("by_digest_enabled", ["digestEnabled"]),

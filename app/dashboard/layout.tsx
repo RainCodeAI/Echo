@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
 import { RedirectToSignIn } from "@clerk/nextjs";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/sidebar";
@@ -9,6 +9,8 @@ import { Topbar } from "@/components/dashboard/topbar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { useStoreUser } from "@/hooks/use-store-user";
 import { TermsGate } from "@/components/privacy/terms-gate";
+import { DeletionPending } from "@/components/privacy/deletion-pending";
+import { api } from "@/convex/_generated/api";
 
 /**
  * Authenticated dashboard shell (owners / office).
@@ -42,6 +44,15 @@ function DashboardShell({ children }: { children: ReactNode }) {
   if (!isReady) {
     return <FullScreenLoader label="Setting up your workspace..." />;
   }
+
+  return <PendingDeletionGate>{children}</PendingDeletionGate>;
+}
+
+/** A workspace waiting to be deleted shows only the cancel / export screen. */
+function PendingDeletionGate({ children }: { children: ReactNode }) {
+  const pending = useQuery(api.privacy.pendingDeletion, {});
+  if (pending === undefined) return <FullScreenLoader />;
+  if (pending) return <DeletionPending pending={pending} />;
 
   return (
     <div className="flex h-screen overflow-hidden bg-muted/30 print:block print:h-auto print:overflow-visible print:bg-white">

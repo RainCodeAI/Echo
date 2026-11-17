@@ -63,15 +63,42 @@ test("privacy, consent, export and deletion", async ({ context, browser }) => {
   const tables = (await allCalls(p)).filter((x) => x.name === "privacy:exportPage").map((x) => x.args.table);
   check("Export read all 9 tables", tables.length === 9, tables.join(","));
   await p.getByRole("status").filter({ hasText: "Downloaded" }).waitFor();
-  const del = p.getByRole("button", { name: "Delete workspace permanently" });
+  check("Delete explains the grace period", (await p.getByText(/removed for good after 7 days/).count()) === 1);
+  const del = p.getByRole("button", { name: "Delete workspace" });
   check("Delete disabled until the name matches", await del.isDisabled());
   await p.getByLabel("Workspace name to confirm deletion").fill("acme roofing");
   await del.click();
   await p.waitForTimeout(50);
   c = await lastCall(p);
   check(
-    "Delete sends the typed name, then signs out to /",
-    c?.name === "privacy:deleteWorkspace" && c.args.confirmName === "acme roofing" && (await windowValue<{ redirectUrl: string }>(p, "__signedOut"))?.redirectUrl === "/",
+    "Delete sends the typed name and stays signed in (the dashboard shows the pending screen)",
+    c?.name === "privacy:deleteWorkspace" && c.args.confirmName === "acme roofing" && (await windowValue(p, "__signedOut")) == null,
+  );
+
+  // Scheduled for deletion: owner can cancel or export; members can only sign out.
+  p = await open("view=pending");
+  check(
+    "Pending screen names who deleted it and when it goes",
+    (await p.getByText(/Dana deleted this workspace/).count()) === 1 && (await p.getByText(/removed for good on/).count()) === 1,
+  );
+  check("Pending screen still offers export", (await p.getByRole("button", { name: "Export data" }).count()) === 1);
+  await p.getByRole("button", { name: /Cancel deletion/ }).click();
+  await p.waitForTimeout(50);
+  check("Cancel calls cancelDeletion", (await lastCall(p))?.name === "privacy:cancelDeletion");
+  await p.getByRole("button", { name: "Sign out" }).click();
+  await p.waitForTimeout(50);
+  check("Sign out from the pending screen", (await windowValue<{ redirectUrl: string }>(p, "__signedOut"))?.redirectUrl === "/");
+  p = await open("view=pending&member");
+  check(
+    "Members see the notice but can't cancel or export",
+    (await p.getByText("Only the workspace owner can cancel this.").count()) === 1 &&
+      (await p.getByRole("button", { name: /Cancel deletion/ }).count()) === 0 &&
+      (await p.getByRole("button", { name: "Export data" }).count()) === 0,
+  );
+  p = await open("view=pending&started");
+  check(
+    "Once removal starts: no cancel",
+    (await p.getByText(/can no longer be cancelled/).count()) === 1 && (await p.getByRole("button", { name: /Cancel deletion/ }).count()) === 0,
   );
   p = await open("view=data&member");
   check(

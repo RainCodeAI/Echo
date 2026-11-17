@@ -33,6 +33,7 @@ export async function getCurrentUser(
  */
 export async function requireCurrentUser(
   ctx: AnyCtx,
+  opts: { allowPendingDeletion?: boolean } = {},
 ): Promise<Doc<"users">> {
   const user = await getCurrentUser(ctx);
   if (!user) {
@@ -41,8 +42,14 @@ export async function requireCurrentUser(
     );
   }
   const company = await ctx.db.get(user.companyId);
-  if (!company || company.deletionRequestedAt) {
-    throw new Error("This workspace has been deleted.");
+  if (!company) throw new Error("This workspace has been deleted.");
+  if (company.deletionRequestedAt) {
+    // During the grace period only the deletion screen (cancel / export)
+    // works; everything else is closed.
+    const inGrace = !company.deletionStartedAt && !!company.deletionScheduledFor;
+    if (!(opts.allowPendingDeletion && inGrace)) {
+      throw new Error("This workspace is being deleted.");
+    }
   }
   return user;
 }
@@ -57,8 +64,11 @@ export async function requireCompanyId(ctx: AnyCtx) {
  * Like {@link requireCurrentUser} but also requires the `owner` role. Use for
  * workspace-administration actions (inviting/removing office users).
  */
-export async function requireOwner(ctx: AnyCtx): Promise<Doc<"users">> {
-  const user = await requireCurrentUser(ctx);
+export async function requireOwner(
+  ctx: AnyCtx,
+  opts: { allowPendingDeletion?: boolean } = {},
+): Promise<Doc<"users">> {
+  const user = await requireCurrentUser(ctx, opts);
   if (user.role !== "owner") {
     throw new Error("Only the workspace owner can do that.");
   }

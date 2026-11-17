@@ -5,6 +5,7 @@ import { TermsGate } from "@/components/privacy/terms-gate";
 import { RecordingNotice } from "@/components/entry/recording-notice";
 import { DataControls } from "@/components/settings/data-controls";
 import { DeleteNote } from "@/components/notes/delete-note";
+import { DeletionPending } from "@/components/privacy/deletion-pending";
 import PrivacyPage from "@/app/privacy/page";
 import TermsPage from "@/app/terms/page";
 
@@ -36,6 +37,7 @@ const content =
   view === "terms" ? <TermsGate><p data-testid="dashboard">Dashboard content</p></TermsGate>
   : view === "notice" ? <RecordingNotice companyId={"c1" as never} companyName="Acme Roofing" member={{ id: "m1" as never, name: "Luis Garcia", verificationToken: "tok" }} onAcknowledged={() => ((window as any).__acked = true)} onSwitchUser={() => ((window as any).__switched = true)} />
   : view === "data" ? <DataControls />
+  : view === "pending" ? <DeletionPending pending={{ companyName: "Acme Roofing", isOwner: owner, requestedAt: Date.UTC(2026, 10, 17, 15), requestedByName: "Dana", scheduledFor: q.has("started") ? null : Date.UTC(2026, 10, 24, 15), started: q.has("started") }} />
   : view === "delete" ? <DeleteNote noteId={"n1" as never} />
   : view === "privacy" ? <PrivacyPage />
   : <TermsPage />;

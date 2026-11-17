@@ -263,11 +263,21 @@ These need the real runtime (see [BUG_SWEEP_2026-11.md](BUG_SWEEP_2026-11.md)):
       person's PIN in Team, and record a note. The phone asks for the PIN
       again; after the new PIN, the held note sends.
 
+### Backups
+
+Before the first real customer, follow `docs/BACKUP_RESTORE.md` §1:
+- turn on scheduled Convex backups, including file storage
+- set how long backups are kept
+- save the production env vars in the password manager
+- do one restore drill
+
 ### Rollback
 
 - **App:** Vercel → Deployments → previous deployment → *Instant Rollback*.
 - **Convex functions:** redeploy the previous commit. Schema changes so far
   are additive (optional fields), so rolling back code is safe.
+- **Data damaged:** see `docs/BACKUP_RESTORE.md` §3–4. Roll back the code
+  first, then restore.
 - **AI misbehaving or costs spiking:**
   `npx convex env set --prod OPENAI_KILL_SWITCH 1`. Notes still save; AI
   marks them failed and they can be retried later.
