@@ -296,8 +296,9 @@ Open <http://localhost:3000>, sign up, and land on a freshly provisioned workspa
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` (run `convex dev` first) |
 | `npm run typecheck:convex` | Typecheck Convex functions |
-| `npm test` | Vitest unit tests (incl. OpenAI calls against a mock server) |
-| `npm run ci` | Everything CI runs: typechecks, lint, tests, build |
+| `npm test` | Vitest unit + Convex integration tests (incl. OpenAI calls against a mock server) |
+| `npm run test:browser` | Playwright browser tests: real UI components with a fake Convex client ([tests/browser](tests/browser/README.md)) |
+| `npm run ci` | Typechecks, lint, unit tests, build (CI also runs the browser tests as a separate job) |
 | `node scripts/eval-transcription.mjs <dir>` | Compare transcription models on real recordings |
 | `npx convex run ops:checkConfig --prod` | Verify production Convex secrets (no values shown) |
 

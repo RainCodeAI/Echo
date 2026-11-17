@@ -34,3 +34,8 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# browser tests (built fixture pages, failure screenshots)
+/tests/browser/.out/
+/tests/browser/.results/
+/playwright-report/
