@@ -18,6 +18,11 @@ export type FieldDraft = {
   savedAt: number;
   jobId?: string;
   jobTitle?: string;
+  /**
+   * Saved mid-recording (every few seconds) rather than after Stop: the page
+   * was closed or killed while recording, so the audio may be cut short.
+   */
+  interrupted?: boolean;
 };
 
 export function draftKey(companyId: string, teamMemberId: string) {

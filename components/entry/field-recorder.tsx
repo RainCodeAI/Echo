@@ -34,7 +34,14 @@ import {
   useFieldQueue,
 } from "@/components/entry/field-queue-provider";
 import { FieldQueueStatus } from "@/components/entry/field-queue-status";
+import { PhoneCheck } from "@/components/entry/phone-check";
 import { FieldJobPicker } from "@/components/entry/field-job-picker";
+import {
+  acquireWakeLock,
+  interruptMessage,
+  micErrorMessage,
+  type InterruptReason,
+} from "@/lib/field-device";
 import {
   lastPickedJob,
   rememberPickedJob,
@@ -60,11 +67,17 @@ type Phase = "ready" | "recording" | "review" | "submitting" | "done";
 const MAX_RECORDING_MS = 10 * 60 * 1000;
 /** Mirror of the server-side cap (Whisper also refuses files over 25 MB). */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+/** While recording, save what's captured so far to the phone this often. */
+const CHECKPOINT_MS = 5_000;
 /** Photo limits (mirror the server-side caps in convex/voiceNotes.ts). */
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 type AttachedPhoto = { file: File; url: string };
+
+const nowMs = () => Date.now();
+const newClientUploadId = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `upload-${nowMs()}`;
 
 export function FieldRecorder({
   companyId,
@@ -84,6 +97,8 @@ export function FieldRecorder({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [restoredDraft, setRestoredDraft] = useState(false);
+  /** Why the last recording ended early (screen locked, call, cut off). */
+  const [notice, setNotice] = useState<string | null>(null);
   // Preselect the job this worker picked last this shift (client-only render).
   const [job, setJob] = useState<PickedJob | null>(() =>
     lastPickedJob(companyId, member.id),
@@ -104,11 +119,14 @@ export function FieldRecorder({
   const startedAtRef = useRef<number>(0);
   const tickRef = useRef<number | null>(null);
   const finalTranscriptRef = useRef("");
-  const clientUploadIdRef = useRef(
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `upload-${Date.now()}`,
-  );
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+  const checkpointRef = useRef<number | null>(null);
+  /** Latest job/urgent/photos for the mid-recording checkpoint. */
+  const latestRef = useRef({ job, urgent, photos });
+  useEffect(() => {
+    latestRef.current = { job, urgent, photos };
+  }, [job, urgent, photos]);
+  const clientUploadIdRef = useRef(newClientUploadId());
 
   useEffect(() => {
     setSpeechSupported(!!getSpeechRecognitionConstructor());
@@ -140,6 +158,11 @@ export function FieldRecorder({
         }),
       );
       setRestoredDraft(true);
+      if (draft.interrupted) {
+        setNotice(
+          "This recording was cut off when the phone closed the page. What was saved is below: submit it, then record another for the rest.",
+        );
+      }
       setPhase((current) => (current === "ready" ? "review" : current));
     });
     return () => {
@@ -149,7 +172,9 @@ export function FieldRecorder({
 
   // Save the unsubmitted recording to the phone whenever it changes.
   useEffect(() => {
-    if (phase !== "review") return;
+    // Also before recording: opening the camera for a photo can make Android
+    // close this page in the background.
+    if (phase !== "review" && !(phase === "ready" && photos.length > 0)) return;
     if (!audioBlob && !transcript.trim() && photos.length === 0) return;
     const timer = window.setTimeout(() => {
       void saveDraft({
@@ -184,7 +209,17 @@ export function FieldRecorder({
     draftStorageKey,
   ]);
 
+  const releaseExtras = useCallback(() => {
+    if (checkpointRef.current) {
+      window.clearInterval(checkpointRef.current);
+      checkpointRef.current = null;
+    }
+    void wakeLockRef.current?.release().catch(() => undefined);
+    wakeLockRef.current = null;
+  }, []);
+
   const stopStreams = useCallback(() => {
+    releaseExtras();
     if (tickRef.current) {
       window.clearInterval(tickRef.current);
       tickRef.current = null;
@@ -201,7 +236,7 @@ export function FieldRecorder({
     mediaRecorderRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-  }, []);
+  }, [releaseExtras]);
 
   useEffect(() => () => stopStreams(), [stopStreams]);
 
@@ -266,19 +301,24 @@ export function FieldRecorder({
 
   async function startRecording() {
     setError(null);
+    setNotice(null);
     setTranscript("");
     setInterim("");
     setAudioBlob(null);
     finalTranscriptRef.current = "";
     setRestoredDraft(false);
-    clientUploadIdRef.current =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `upload-${Date.now()}`;
+    clientUploadIdRef.current = newClientUploadId();
 
     try {
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        throw Object.assign(new Error("unsupported"), { name: "NotSupportedError" });
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      // A call, Siri or another app taking the mic ends the track.
+      stream.getAudioTracks().forEach((track) => {
+        track.onended = () => finishEarly("ended");
+      });
 
       const mimeType = pickRecorderMimeType();
       const recorder = mimeType
@@ -292,11 +332,25 @@ export function FieldRecorder({
       };
       recorder.onstop = () => {
         const type = recorder.mimeType || mimeType || "audio/webm";
-        setAudioBlob(new Blob(chunksRef.current, { type }));
+        const blob = new Blob(chunksRef.current, { type });
+        if (blob.size === 0) {
+          // iOS sometimes hands back nothing after an interruption.
+          setAudioBlob(null);
+          if (!finalTranscriptRef.current) {
+            setError("No audio was captured. Check nothing else is using the microphone, then record again.");
+          }
+          return;
+        }
+        setAudioBlob(blob);
         setAudioMimeType(type);
       };
+      recorder.onerror = () => finishEarly("error");
       mediaRecorderRef.current = recorder;
       recorder.start(250);
+      void acquireWakeLock().then((lock) => {
+        if (mediaRecorderRef.current === recorder && recorder.state === "recording") wakeLockRef.current = lock;
+        else void lock?.release().catch(() => undefined);
+      });
 
       const SpeechRecognition = getSpeechRecognitionConstructor();
       if (SpeechRecognition) {
@@ -342,28 +396,71 @@ export function FieldRecorder({
         setSpeechSupported(false);
       }
 
-      startedAtRef.current = Date.now();
+      startedAtRef.current = nowMs();
       setElapsedMs(0);
       tickRef.current = window.setInterval(() => {
         const elapsed = Date.now() - startedAtRef.current;
         setElapsedMs(elapsed);
         // Stop automatically at the max length so the blob stays under cap.
         if (elapsed >= MAX_RECORDING_MS) {
-          stopRecording();
+          finishEarly("max");
         }
       }, 250);
+      // Save what's captured so far, so a killed page keeps most of it.
+      checkpointRef.current = window.setInterval(() => {
+        if (chunksRef.current.length === 0) return;
+        const { job: j, urgent: u, photos: ph } = latestRef.current;
+        void saveDraft({
+          key: draftStorageKey,
+          clientUploadId: clientUploadIdRef.current,
+          transcript: finalTranscriptRef.current,
+          audio: new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || "audio/webm" }),
+          audioMimeType: recorder.mimeType || mimeType,
+          audioDurationMs: Date.now() - startedAtRef.current,
+          photos: ph.map((p) => ({ blob: p.file, name: p.file.name, mimeType: p.file.type || undefined })),
+          workerFlaggedUrgent: u,
+          recordedAt: startedAtRef.current,
+          savedAt: Date.now(),
+          jobId: j?.id,
+          jobTitle: j?.title,
+          interrupted: true,
+        });
+      }, CHECKPOINT_MS);
       setPhase("recording");
-    } catch {
-      setError(
-        "Microphone access is required to record. Check browser permissions and try again.",
-      );
+    } catch (err) {
+      setError(micErrorMessage(err, navigator.userAgent, window.isSecureContext));
       stopStreams();
     }
   }
 
+  /** Recording ended without the worker pressing Stop: keep it and say why. */
+  function finishEarly(reason: InterruptReason) {
+    if (mediaRecorderRef.current?.state !== "recording") return;
+    stopRecording();
+    setNotice(interruptMessage(reason));
+  }
+
+  // Screen locked / switched apps mid-recording: phones stop the mic anyway,
+  // so stop cleanly and keep what was captured rather than recording silence.
+  useEffect(() => {
+    if (phase !== "recording") return;
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") finishEarly("hidden");
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", onHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("pagehide", onHidden);
+    };
+    // finishEarly reads refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   function stopRecording() {
     const duration = Date.now() - startedAtRef.current;
     setElapsedMs(duration);
+    releaseExtras();
     if (tickRef.current) {
       window.clearInterval(tickRef.current);
       tickRef.current = null;
@@ -452,12 +549,10 @@ export function FieldRecorder({
     setElapsedMs(0);
     setSubmittedUploadId(null);
     setRestoredDraft(false);
+    setNotice(null);
     startedAtRef.current = 0;
     finalTranscriptRef.current = "";
-    clientUploadIdRef.current =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `upload-${Date.now()}`;
+    clientUploadIdRef.current = newClientUploadId();
   }
 
   if (phase === "done") {
@@ -579,6 +674,17 @@ export function FieldRecorder({
               : "Tap the green button and speak"}
         </p>
       </div>
+
+      {notice && phase === "review" ? (
+        <p
+          className="flex gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+          data-testid="recording-notice-interrupted"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {notice}
+        </p>
+      ) : null}
 
       {restoredDraft && phase === "review" ? (
         <p className="rounded-md bg-primary/10 px-3 py-2 text-sm text-primary" data-testid="draft-restored">
@@ -703,6 +809,7 @@ export function FieldRecorder({
       </label>
 
       <FieldQueueStatus />
+      <PhoneCheck />
 
       {error ? (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

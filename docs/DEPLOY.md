@@ -222,6 +222,9 @@ npx convex env set --prod STORAGE_CLEANUP_DISABLED 1
 
 ### Smoke test (about 15 minutes, do it on real phones)
 
+Before the first pilot, also run the full real-phone script in
+[`docs/FIELD_TEST.md`](FIELD_TEST.md) (about 45 minutes per phone).
+
 - [ ] Sign up as a new owner. The workspace is created and the dashboard loads.
 - [ ] **Settings:** set the company name and primary trade.
 - [ ] **Crew:** add a crew member with a PIN. Print or scan the QR code.
